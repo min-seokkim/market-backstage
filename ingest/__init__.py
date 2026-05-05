@@ -78,10 +78,40 @@ class IngestedRawEvent:
 
 
 @dataclass
+class IngestedActor:
+    # Reference-Layer actor for bulk authoritative ingest (PR4-FTC). Maps
+    # 1:1 onto persistence.upsert_actor_dyn — `identity` becomes
+    # identity_json, `proposal_source` keeps the adapter-name + endpoint
+    # tag (e.g. 'ftc_appnGroup') so deprecation/audit can trace origin.
+    actor_id: str
+    name: str
+    type_: str | None = None              # person | organization | role_instance | unknown | None
+    category: str | None = None
+    role: str | None = None
+    identity: dict = field(default_factory=dict)
+    status: str = "active"                # FTC = authoritative, not "proposed"
+    proposal_source: str | None = None
+    sources: list = field(default_factory=list)
+
+
+@dataclass
+class IngestedEdge:
+    # Actor-actor relationship for edges_dyn (PR-Z). `ts` is a python
+    # datetime; run_adapter serializes to ISO8601 at persist time.
+    src_actor_id: str
+    dst_actor_id: str
+    edge_type: str
+    ts: datetime
+    metadata: dict = field(default_factory=dict)
+
+
+@dataclass
 class IngestResult:
     documents: list[Document] = field(default_factory=list)
     variables: list[IngestedVariable] = field(default_factory=list)
     raw_events: list[IngestedRawEvent] = field(default_factory=list)
+    actors: list[IngestedActor] = field(default_factory=list)
+    edges: list[IngestedEdge] = field(default_factory=list)
 
 
 class Adapter(Protocol):
@@ -123,6 +153,7 @@ def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
              adapter.name, since.date().isoformat())
     run_id = db.begin_ingestion_run(con, adapter.name, started_at)
     docs = vars_ = events = dups = 0
+    actors_n = edges_n = 0
     err: str | None = None
 
     warn_capture = _AdapterWarningCapture()
@@ -166,6 +197,34 @@ def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
                                     ts=_iso(ev.ts), payload=ev.payload,
                                     source_doc_id=doc_id, severity=ev.severity)
                 events += 1
+
+            # PR4-FTC: actors_dyn / edges_dyn bulk ingest. Adapters that
+            # don't populate these keep the lists empty — no behavior
+            # change for legacy adapters.
+            for a in result.actors:
+                db.upsert_actor_dyn(
+                    con,
+                    actor_id=a.actor_id, name=a.name,
+                    type_=a.type_, category=a.category, role=a.role,
+                    identity=a.identity or None,
+                    sources=a.sources or None,
+                    status=a.status,
+                    proposal_source=a.proposal_source,
+                    proposed_by=adapter.name,
+                )
+                actors_n += 1
+
+            for edge in result.edges:
+                ts_iso = _iso(edge.ts) if isinstance(edge.ts, datetime) else str(edge.ts)
+                db.upsert_edge(
+                    con,
+                    src_actor_id=edge.src_actor_id,
+                    dst_actor_id=edge.dst_actor_id,
+                    edge_type=edge.edge_type,
+                    ts=ts_iso,
+                    metadata=edge.metadata or None,
+                )
+                edges_n += 1
         except Exception as e:
             err = f"{type(e).__name__}: {e}"
             log.exception("adapter %s failed", adapter.name)
@@ -184,9 +243,11 @@ def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
                             doc_count=docs, var_count=vars_,
                             event_count=events, error=err)
     con.commit()
-    log.info("ingest %s: done — docs=%d, vars=%d, events=%d, dups=%d, "
-             "elapsed=%ds%s",
-             adapter.name, docs, vars_, events, dups, elapsed,
+    log.info("ingest %s: done — docs=%d, vars=%d, events=%d, "
+             "actors=%d, edges=%d, dups=%d, elapsed=%ds%s",
+             adapter.name, docs, vars_, events,
+             actors_n, edges_n, dups, elapsed,
              f", error={err[:100]}" if err else "")
-    return {"docs": docs, "vars": vars_, "events": events, "dups": dups,
+    return {"docs": docs, "vars": vars_, "events": events,
+            "actors": actors_n, "edges": edges_n, "dups": dups,
             "error": err}
