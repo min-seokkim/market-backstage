@@ -212,8 +212,35 @@ CREATE TABLE IF NOT EXISTS actors_dyn (
     promoted_at              TEXT,
     promoted_by              TEXT,
     deprecated_at            TEXT,
-    rationale                TEXT
+    rationale                TEXT,
+    -- Stratification — added in PR-Z. NULL means unstratified (legacy
+    -- rows seeded before PR-Z; resolution is PR4-PERSON's responsibility).
+    -- 'role_instance' = a person filling a role at a point in time
+    -- (e.g. president = the office; lee_jaemyung as president = role_instance).
+    type                     TEXT
+        CHECK(type IS NULL OR type IN
+              ('person', 'organization', 'role_instance', 'unknown'))
 );
+
+-- ==== PR-Z: actor-actor relationship edges (separate from causal_edges_dyn,
+-- which models variable→variable causal blends). edges_dyn captures
+-- structural / social / political ties: subsidiary_of, owns, executive_of,
+-- shareholder_of, family_relation, political_affiliation, etc.
+-- Convention: edge_type strings are not enum-constrained; new types can
+-- be added without schema migration.
+CREATE TABLE IF NOT EXISTS edges_dyn (
+    src_actor_id  TEXT NOT NULL,
+    dst_actor_id  TEXT NOT NULL,
+    edge_type     TEXT NOT NULL,
+    ts            TEXT NOT NULL,           -- ISO8601 (PR-Z spec used TIMESTAMP;
+                                           -- SQLite stores TEXT regardless)
+    metadata      TEXT,                    -- JSON
+    PRIMARY KEY (src_actor_id, dst_actor_id, edge_type, ts)
+);
+
+CREATE INDEX IF NOT EXISTS idx_edges_dyn_src  ON edges_dyn(src_actor_id);
+CREATE INDEX IF NOT EXISTS idx_edges_dyn_dst  ON edges_dyn(dst_actor_id);
+CREATE INDEX IF NOT EXISTS idx_edges_dyn_type ON edges_dyn(edge_type);
 
 CREATE TABLE IF NOT EXISTS extraction_runs (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,

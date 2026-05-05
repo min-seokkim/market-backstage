@@ -41,6 +41,8 @@ from .dyn_catalog_io import (
     link_extraction_doc, fetch_unextracted_docs,
     insert_event_template_proposal, insert_variable_spec_proposal,
     insert_actor_proposal, insert_causal_edge_proposal,
+    # PR-Z
+    upsert_actor_dyn, upsert_edge,
 )
 
 __all__ = [
@@ -68,4 +70,6 @@ __all__ = [
     "link_extraction_doc", "fetch_unextracted_docs",
     "insert_event_template_proposal", "insert_variable_spec_proposal",
     "insert_actor_proposal", "insert_causal_edge_proposal",
+    # PR-Z
+    "upsert_actor_dyn", "upsert_edge",
 ]

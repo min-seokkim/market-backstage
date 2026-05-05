@@ -30,8 +30,25 @@ def init(path: Path | str = DB_PATH, *, fresh: bool = False) -> sqlite3.Connecti
         path.unlink()
     con = connect(path)
     con.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    _apply_idempotent_migrations(con)
     con.commit()
     return con
+
+
+def _apply_idempotent_migrations(con: sqlite3.Connection) -> None:
+    """Schema changes that can't be expressed as plain CREATE TABLE IF NOT
+    EXISTS — added here so existing DB files are upgraded in place without
+    requiring --fresh. Each migration must tolerate being re-run.
+    """
+    # PR-Z: actors_dyn.type column. CREATE TABLE in schema.sql includes it
+    # for fresh DBs; this ALTER handles upgrades of existing DBs created
+    # before PR-Z. The CHECK constraint is omitted on ALTER (SQLite doesn't
+    # support adding a CHECK via ALTER TABLE) — it only applies to fresh
+    # CREATE. Application-side validation in upsert_actor_dyn enforces
+    # the same allowed values for existing-DB inserts.
+    cols = {r[1] for r in con.execute("PRAGMA table_info(actors_dyn)").fetchall()}
+    if "type" not in cols:
+        con.execute("ALTER TABLE actors_dyn ADD COLUMN type TEXT")
 
 
 # ---- Phase 3-5 sim tables --------------------------------------------------
@@ -200,7 +217,7 @@ def summary(con: sqlite3.Connection) -> dict[str, int]:
                   "actors", "states", "events", "decisions", "decision_journal",
                   "market_pressure", "edges",
                   "event_templates_dyn", "variable_specs_dyn",
-                  "causal_edges_dyn", "actors_dyn",
+                  "causal_edges_dyn", "actors_dyn", "edges_dyn",
                   "extraction_runs", "extraction_doc_links",
                   "extraction_decisions",
                   "actor_utterances", "eum_traces"):

@@ -427,3 +427,92 @@ def insert_causal_edge_proposal(con: sqlite3.Connection, *, p: dict,
         return True
     except sqlite3.IntegrityError:
         return False
+
+
+# ---------------------------------------------------------------------------
+# PR-Z: stratified actor + actor-actor edge upserts
+# ---------------------------------------------------------------------------
+
+
+_ALLOWED_ACTOR_TYPES = {"person", "organization", "role_instance", "unknown",
+                        None}
+
+
+def upsert_actor_dyn(con: sqlite3.Connection, *,
+                     actor_id: str,
+                     name: str,
+                     type_: str | None = None,
+                     category: str | None = None,
+                     role: str | None = None,
+                     activation: str = "always_on",
+                     identity: dict | None = None,
+                     sources: list | None = None,
+                     schema: dict | None = None,
+                     decision_variables: list | None = None,
+                     notes: str = "",
+                     status: str = "proposed",
+                     trust_score: float = 0.0,
+                     proposal_source: str = "manual",
+                     proposed_by: str = "manual",
+                     rationale: str = "",
+                     ) -> None:
+    """INSERT OR REPLACE into actors_dyn with the PR-Z `type` column.
+
+    Validates `type_` against {person, organization, role_instance, unknown,
+    None}. Application-side validation matches the schema-level CHECK on
+    fresh DBs and enforces the same constraint on existing DBs (where the
+    CHECK couldn't be added via ALTER TABLE).
+
+    Distinct from `insert_actor_proposal`: that helper is INSERT-only and
+    targeted at LLM extractor proposals; this helper is upsert and supports
+    bulk Reference-layer ingest paths (PR4-FTC, PR4-PERSON).
+    """
+    if type_ not in _ALLOWED_ACTOR_TYPES:
+        raise ValueError(
+            f"upsert_actor_dyn: invalid type_={type_!r}; "
+            f"expected one of person|organization|role_instance|unknown|None"
+        )
+    now = _now_iso()
+    con.execute(
+        "INSERT OR REPLACE INTO actors_dyn "
+        "(id, name, category, role, activation, identity_json, "
+        " sources_json, schema_json, decision_variables_json, notes, "
+        " status, trust_score, proposal_source, proposed_by, proposed_at, "
+        " rationale, type) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (actor_id, name, category, role, activation,
+         json.dumps(identity or {}, ensure_ascii=False),
+         json.dumps(sources or [], ensure_ascii=False),
+         json.dumps(schema or {}, ensure_ascii=False),
+         json.dumps(decision_variables, ensure_ascii=False)
+            if decision_variables is not None else None,
+         notes,
+         status, float(trust_score), proposal_source, proposed_by, now,
+         rationale, type_),
+    )
+
+
+def upsert_edge(con: sqlite3.Connection, *,
+                src_actor_id: str,
+                dst_actor_id: str,
+                edge_type: str,
+                ts: str,
+                metadata: dict | None = None,
+                ) -> None:
+    """INSERT OR REPLACE into edges_dyn (PR-Z).
+
+    Distinct from `insert_edge` in core_io: that one writes to the runtime
+    `edges` table (undirected pairwise World graph). This one writes the
+    typed actor-actor relationship registry used for org/person/role
+    structural ties.
+
+    `ts` is an ISO8601 string. Caller is responsible for serialization
+    (e.g. `datetime.now(timezone.utc).isoformat()`).
+    """
+    con.execute(
+        "INSERT OR REPLACE INTO edges_dyn "
+        "(src_actor_id, dst_actor_id, edge_type, ts, metadata) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (src_actor_id, dst_actor_id, edge_type, ts,
+         json.dumps(metadata, ensure_ascii=False) if metadata else None),
+    )
