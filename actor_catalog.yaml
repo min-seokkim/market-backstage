@@ -1,0 +1,705 @@
+# Actor Catalog — Phase 3 정의 파일
+#
+# 각 actor의 *정적 신원*과 *데이터 소스*만 여기에 둔다. trait/interest/belief 값은
+# 절대 하드코딩하지 않는다. 그것들은 calibration.py가 ingest된 1차자료(documents)
+# + LLM 추정으로 채운다.
+#
+# 필드:
+# - id          : 안정적 식별자 (variables.py affects_actors와 동기화)
+# - name        : 한국어 표시명
+# - category    : government | politics | chaebol | family | investor | external
+# - role        : head_of_state | minister | regulator | central_banker
+#                 | party_leader | chaebol_chair | chaebol_cfo
+#                 | family_dispute | fund_pm | retail_aggregate | foreign_state
+# - mvp         : true → run_demo의 기본 활성 roster
+# - activation  : always_on | event_triggered
+# - identity    :
+#     keywords  : 이 actor에 대한 문서를 fetch_documents_for_actor가 매칭할 때 사용
+#     notes     : 자유 메모 (배경, 권력 범위)
+# - sources     : 이 actor와 관련된 ingest 어댑터 + 파라미터
+# - schema      : ActionSchema (market_actions, policy, statement, disclosure, weight)
+# - decision_variables : null이면 loader가 variables.for_actor(id)에서 자동 채움.
+#                        명시하면 그 목록만 사용.
+# - notes       : 자유 메모
+
+# ============================================================================
+# Government bureau (개별 인물)
+# ============================================================================
+
+- id: president
+  name: 대통령
+  category: government
+  role: head_of_state
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [대통령, 청와대, 윤석열, 대통령실]
+    notes: |
+      현직 대통령. 5년 단임. 재선 인센티브는 없으나 차기 정권 자본·역사적 평가
+      동기 강함. 사면·외교·산업정책 최종 결정자. action bias under crisis.
+  sources:
+    - adapter: govt_press
+      params: {ministry: blue_house}
+    - adapter: news
+      params: {keywords: [대통령, 청와대, 대통령실]}
+  schema:
+    market_actions: false
+    policy: true
+    statement: true
+    disclosure: false
+    weight: 0
+  decision_variables: null
+  notes: catalog A.1. 모든 정부 actor의 정점.
+
+- id: mof_minister
+  name: 기획재정부 장관
+  category: government
+  role: minister
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [기재부, 기획재정부, 경제부총리]
+    notes: 재정·세제·예산 총괄. 시장 안정과 재정 건전성 사이 trade-off.
+  sources:
+    - adapter: govt_press
+      params: {ministry: mof}
+    - adapter: news
+      params: {keywords: [기재부, 기획재정부, 경제부총리]}
+  schema:
+    market_actions: false
+    policy: true
+    statement: true
+    disclosure: false
+    weight: 0
+  decision_variables: null
+
+- id: fsc_chair
+  name: 금융위원장
+  category: government
+  role: regulator
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [금융위, 금융위원장, FSC]
+    notes: 자본시장·은행 감독. 공매도·Value-up 정책 직접 결정.
+  sources:
+    - adapter: govt_press
+      params: {ministry: fsc}
+    - adapter: news
+      params: {keywords: [금융위원장, 금융위, 공매도, Value-up]}
+  schema:
+    market_actions: false
+    policy: true
+    statement: true
+    weight: 0
+  decision_variables: null
+
+- id: ftc_chair
+  name: 공정거래위원장
+  category: government
+  role: regulator
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [공정위, 공정거래위원장, 일감몰아주기]
+    notes: 재벌 일감몰아주기·내부거래 제재의 핵심.
+  sources:
+    - adapter: govt_press
+      params: {ministry: ftc}
+    - adapter: news
+      params: {keywords: [공정거래위원장, 공정위, 과징금]}
+  schema:
+    market_actions: false
+    policy: true
+    statement: true
+    weight: 0
+  decision_variables: null
+
+- id: bok_governor
+  name: 한국은행 총재
+  category: government
+  role: central_banker
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [한국은행, 한은 총재, BOK, 이창용, 통화정책]
+    notes: 통화정책·FX 안정·금융안정 mandate. 독립성 평판 anchor.
+  sources:
+    - adapter: govt_press
+      params: {ministry: bok}
+    - adapter: news
+      params: {keywords: [한국은행 총재, 한은 총재, 통화정책, BOK]}
+  schema:
+    market_actions: false
+    policy: true
+    statement: true
+    weight: 0
+  decision_variables: null
+
+- id: nts_commissioner
+  name: 국세청장
+  category: government
+  role: regulator
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [국세청, 국세청장, 세무조사]
+    notes: 재벌 세무조사·상속세 부과의 실무 결정자.
+  sources:
+    - adapter: news
+      params: {keywords: [국세청, 국세청장, 세무조사, 추징금]}
+  schema:
+    market_actions: false
+    policy: true
+    statement: true
+    weight: 0
+  decision_variables: null
+
+# ============================================================================
+# Politics
+# ============================================================================
+
+- id: ruling_party_leader
+  name: 여당 대표
+  category: politics
+  role: party_leader
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [국민의힘 대표, 여당 대표]
+    notes: 정부 보호 + 차기 정치 자본. 여론조사·당내 헤게모니 민감.
+  sources:
+    - adapter: news
+      params: {keywords: [국민의힘 대표, 여당 대표, 여당 의원]}
+  schema:
+    market_actions: false
+    policy: true
+    statement: true
+    weight: 0
+  decision_variables: null
+
+- id: opposition_party_leader
+  name: 야당 대표
+  category: politics
+  role: party_leader
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [민주당 대표, 야당 대표, 더불어민주당]
+    notes: 정부 견제 + 차기 집권 준비. 공격 narrative 친화.
+  sources:
+    - adapter: news
+      params: {keywords: [민주당 대표, 야당 대표, 더불어민주당 대표]}
+  schema:
+    market_actions: false
+    policy: true
+    statement: true
+    weight: 0
+  decision_variables: null
+
+# ============================================================================
+# Chaebol leadership (그룹별 인물)
+# ============================================================================
+
+- id: chaebol_chair_samsung
+  name: 삼성 회장 (이재용)
+  category: chaebol
+  role: chaebol_chair
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [이재용, 삼성 회장, 삼성전자 회장]
+    notes: |
+      삼성 그룹 지배. 가족 승계·사법 리스크 잔재·미중 wedge 노출.
+      가족 지배 안정 + 장기 경쟁력의 균형.
+  sources:
+    - adapter: dart
+      params: {group: samsung}
+    - adapter: news
+      params: {keywords: [이재용, 삼성전자 회장, 삼성 회장]}
+  schema:
+    market_actions: false
+    policy: false
+    statement: true
+    disclosure: true
+    weight: 0
+  decision_variables: null
+
+- id: chaebol_cfo_samsung
+  name: 삼성전자 CFO
+  category: chaebol
+  role: chaebol_cfo
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [삼성전자 CFO, 삼성전자 사장]
+    notes: 분기 실적·가이던스·외인 IR 책임. 회장과 다른 utility (단기 가시성).
+  sources:
+    - adapter: dart
+      params: {group: samsung, filing_types: [분기보고서, 사업보고서]}
+    - adapter: news
+      params: {keywords: [삼성전자 CFO, 삼성전자 실적]}
+  schema:
+    market_actions: false
+    policy: false
+    statement: true
+    disclosure: true
+    weight: 0
+  decision_variables: null
+
+- id: chaebol_chair_sk
+  name: SK 회장 (최태원)
+  category: chaebol
+  role: chaebol_chair
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [최태원, SK 회장, SK그룹 회장]
+    notes: SK 그룹. 메모리·배터리·통신 분산. 가족 분쟁 노출 잔재.
+  sources:
+    - adapter: dart
+      params: {group: sk}
+    - adapter: news
+      params: {keywords: [최태원, SK 회장]}
+  schema:
+    market_actions: false
+    policy: false
+    statement: true
+    disclosure: true
+    weight: 0
+  decision_variables: null
+
+- id: chaebol_chair_hyundai
+  name: 현대차그룹 회장 (정의선)
+  category: chaebol
+  role: chaebol_chair
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [정의선, 현대차 회장, 현대차그룹 회장]
+    notes: EV 전환·SDV·미국 IRA 노출. 장기 경쟁력 우선.
+  sources:
+    - adapter: dart
+      params: {group: hyundai}
+    - adapter: news
+      params: {keywords: [정의선, 현대차 회장]}
+  schema:
+    market_actions: false
+    policy: false
+    statement: true
+    disclosure: true
+    weight: 0
+  decision_variables: null
+
+- id: chaebol_cfo_hyundai
+  name: 현대차 CFO
+  category: chaebol
+  role: chaebol_cfo
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [현대차 CFO, 현대자동차 CFO]
+    notes: 분기 실적·재무 안정. 환율·원자재 노출.
+  sources:
+    - adapter: dart
+      params: {group: hyundai, filing_types: [분기보고서, 사업보고서]}
+    - adapter: news
+      params: {keywords: [현대차 CFO]}
+  schema:
+    market_actions: false
+    policy: false
+    statement: true
+    disclosure: true
+    weight: 0
+  decision_variables: null
+
+- id: chaebol_chair_lg
+  name: LG 회장 (구광모)
+  category: chaebol
+  role: chaebol_chair
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [구광모, LG 회장, LG그룹 회장]
+    notes: LG 그룹. 배터리·디스플레이·전자.
+  sources:
+    - adapter: dart
+      params: {group: lg}
+    - adapter: news
+      params: {keywords: [구광모, LG 회장]}
+  schema:
+    market_actions: false
+    policy: false
+    statement: true
+    disclosure: true
+    weight: 0
+  decision_variables: null
+
+- id: chaebol_chair_lotte
+  name: 롯데 회장 (신동빈)
+  category: chaebol
+  role: chaebol_chair
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [신동빈, 롯데 회장, 롯데그룹 회장]
+    notes: 롯데. 형제(신동주)와의 잠복 분쟁. 한한령 직접 노출.
+  sources:
+    - adapter: dart
+      params: {group: lotte}
+    - adapter: news
+      params: {keywords: [신동빈, 롯데 회장]}
+  schema:
+    market_actions: false
+    policy: false
+    statement: true
+    disclosure: true
+    weight: 0
+  decision_variables: null
+
+# ============================================================================
+# Family dynamics (분쟁·견제 라인)
+# ============================================================================
+
+- id: samsung_family_dispute
+  name: 삼성 가족 견제 라인
+  category: family
+  role: family_dispute
+  mvp: true
+  activation: event_triggered  # 가족 이벤트 발생 시만 활성
+  identity:
+    keywords: [이부진, 호텔신라, 삼성생명 가족 지분, 이서현]
+    notes: |
+      이재용 외 가족 라인 (이부진·이서현). 평소 잠복. 사망·소송·증여 같은
+      가족 이벤트가 trigger.
+  sources:
+    - adapter: news
+      params: {keywords: [이부진, 호텔신라 회장, 이서현, 삼성 가족 분쟁]}
+    - adapter: dart
+      params: {group: samsung, filing_types: [임원·주요주주]}
+  schema:
+    market_actions: false
+    policy: false
+    statement: true
+    disclosure: true
+    weight: 0
+  decision_variables: null
+
+- id: lotte_family_dispute
+  name: 롯데 가족 분쟁 라인 (신동주)
+  category: family
+  role: family_dispute
+  mvp: false  # 다음 iteration
+  activation: event_triggered
+  identity:
+    keywords: [신동주, 롯데 형제 분쟁, SDJ코퍼레이션]
+  sources:
+    - adapter: news
+      params: {keywords: [신동주, 롯데 형제 분쟁]}
+  schema:
+    market_actions: false
+    statement: true
+    disclosure: true
+    weight: 0
+  decision_variables: null
+
+# ============================================================================
+# Investors
+# ============================================================================
+
+- id: nps_cio
+  name: 국민연금 운용본부장(CIO)
+  category: investor
+  role: fund_pm
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [국민연금, NPS, 운용본부, 기금운용본부장]
+    notes: |
+      국민연금공단의 의결권 + 거대 LP. AUM ~1,000조. 정치적 정당성·KPI·
+      ESG·SAA anchor 사이의 다층 mandate. 분기 리밸런싱 시 시장 충격.
+  sources:
+    - adapter: news
+      params: {keywords: [국민연금 의결권, 기금운용본부, 국민연금 보유]}
+  schema:
+    market_actions: true
+    policy: false
+    statement: true
+    disclosure: true
+    weight: 0.18
+  decision_variables: null
+
+- id: foreign_active_em_macro
+  name: 외국인 매크로 헤지펀드
+  category: investor
+  role: fund_pm
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [외국인 매도, 외국인 순매수, EM 자금, hedge fund Korea]
+    notes: |
+      EM 매크로 + Korea Discount 직접 거래. 빠른 risk-on/off. 공매도 활용.
+      Bridgewater / Brevan Howard 류의 통합 actor.
+  sources:
+    - adapter: news
+      params: {keywords: [외국인 매도, 외국인 매수, MSCI EM]}
+    - adapter: macro
+      params: {series: [VIXCLS, DTWEXBGS, FEDFUNDS]}
+  schema:
+    market_actions: true
+    policy: false
+    statement: false
+    disclosure: false
+    weight: 0.30
+  decision_variables: null
+
+- id: foreign_active_event_driven
+  name: 외국인 event-driven 펀드
+  category: investor
+  role: fund_pm
+  mvp: false  # 다음 iteration
+  activation: event_triggered
+  identity:
+    keywords: [행동주의 펀드, Engine No.1, Whitebox, 행동주의 한국]
+    notes: 행동주의·차익거래·M&A 헤지. Citadel / Elliott류.
+  sources:
+    - adapter: news
+      params: {keywords: [행동주의 펀드, 행동주의 한국]}
+    - adapter: dart
+      params: {filing_types: [주식등의대량보유]}
+  schema:
+    market_actions: true
+    statement: false
+    weight: 0.10
+  decision_variables: null
+
+- id: foreign_passive
+  name: 외국인 패시브 (MSCI/FTSE 추종)
+  category: investor
+  role: fund_pm
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [MSCI Korea, FTSE Korea, 패시브 자금, EWY]
+    notes: 기계적. 지수 비중 + 글로벌 ETF flow에만 반응.
+  sources:
+    - adapter: news
+      params: {keywords: [MSCI Korea, FTSE Korea, EWY]}
+  schema:
+    market_actions: true
+    policy: false
+    statement: false
+    weight: 0.20
+  decision_variables: null
+
+- id: retail
+  name: 개인투자자(동학개미)
+  category: investor
+  role: retail_aggregate
+  mvp: true
+  activation: always_on
+  identity:
+    keywords: [동학개미, 개인투자자, 신용잔고, 공매도 폐지]
+    notes: |
+      집합 actor. 모멘텀·테마·SNS 추종. 신용잔고·공매도 정서 핵심.
+      catalog A.12 sentiment 신호와 강하게 결합.
+  sources:
+    - adapter: news
+      params: {keywords: [동학개미, 개인투자자, 신용잔고, 공매도 폐지]}
+  schema:
+    market_actions: true
+    policy: false
+    statement: false
+    weight: 0.22
+  decision_variables: null
+
+# ============================================================================
+# External (event-triggered, 상시 X)
+# ============================================================================
+
+- id: ustr
+  name: 미 무역대표부(USTR) / 상무부 채널
+  category: external
+  role: foreign_state
+  mvp: true
+  activation: event_triggered  # 미국이 한국에 영향 줄 때만
+  identity:
+    keywords: [USTR, 미 상무부, BIS 제재, 수출통제]
+    notes: |
+      미국 산업 보호 + 대중국 봉쇄 + 동맹 압박. 한국 actor가 아니지만
+      외생 충격 인입 채널. 평소 비활성.
+  sources:
+    - adapter: news
+      params: {keywords: [USTR, 미 상무부, 수출통제, BIS 제재, CHIPS Act]}
+  schema:
+    market_actions: false
+    policy: true
+    statement: true
+    weight: 0
+  decision_variables: null
+
+- id: us_state
+  name: 미 국무부
+  category: external
+  role: foreign_state
+  mvp: false
+  activation: event_triggered
+  identity:
+    keywords: [미 국무부, US State Department, 한미 동맹]
+  sources:
+    - adapter: news
+      params: {keywords: [미 국무부, 한미 동맹]}
+  schema:
+    policy: true
+    statement: true
+    weight: 0
+  decision_variables: null
+
+# ============================================================================
+# v0.2 M&A refinement actors
+# ============================================================================
+
+- id: hmc_ma_committee
+  name: Hyundai Motor Group M&A Committee
+  category: chaebol
+  role: decision_committee
+  type: decision_committee
+  parent_actor: chaebol_chair_hyundai
+  mvp: true
+  activation: event_triggered
+  members:
+    - role: ceo
+      vote_weight: 0.30
+      veto: true
+      utility_focus: [strategic_fit]
+    - role: vp_legal_ma
+      vote_weight: 0.10
+      utility_focus: [legal_risk, deal_structure]
+    - role: vp_finance
+      vote_weight: 0.10
+      utility_focus: [cash_flow, financing_cost]
+    - role: vp_strategy
+      vote_weight: 0.10
+      utility_focus: [long_term_positioning]
+    - role: vp_rnd
+      vote_weight: 0.15
+      utility_focus: [technology_assessment]
+    - role: vp_production
+      vote_weight: 0.05
+      utility_focus: [manufacturing_integration]
+    - role: vp_sales_marketing
+      vote_weight: 0.05
+      utility_focus: [market_synergy]
+    - role: vp_quality
+      vote_weight: 0.05
+      utility_focus: [product_risk]
+    - role: vp_purchasing
+      vote_weight: 0.03
+      utility_focus: [supply_chain]
+    - role: vp_after_service
+      vote_weight: 0.02
+      utility_focus: [service_continuity]
+    - role: vp_hr
+      vote_weight: 0.05
+      utility_focus: [labor_integration]
+  utility_prior:
+    technology_assessment: 0.85
+    financial_due_diligence: 0.10
+    legal_due_diligence: 0.03
+    labor_due_diligence: 0.02
+  blind_spots: [political_regime_change, esg_governance_reform]
+  identity:
+    keywords: [Hyundai M&A, Hyundai Motor acquisition, technical due diligence]
+    notes: |
+      v0.2 committee actor. Manufacturing M&A is modeled as weighted consensus
+      with CEO veto and dominant technical due-diligence weight.
+  sources:
+    - adapter: dart
+      params: {group: hyundai}
+    - adapter: news
+      params: {keywords: [Hyundai M&A, Hyundai acquisition, technical due diligence]}
+  schema:
+    market_actions: false
+    policy: false
+    statement: true
+    disclosure: true
+    weight: 0
+  decision_variables: null
+  notes: v0.2 decision committee actor.
+
+- id: fair_trade_commission
+  name: Korea Fair Trade Commission Gateway
+  category: government
+  role: critical_gateway_regulator
+  type: critical_gateway_regulator
+  mvp: true
+  activation: event_triggered
+  blocks_or_delays:
+    - all_ma_above_threshold
+    - all_holding_company_conversions
+    - all_intra_group_transactions_above_threshold
+  utility_prior:
+    domestic_industry_protection: 0.30
+    monopoly_concern: 0.35
+    diplomatic_relations: 0.15
+    political_alignment_of_chairman: 0.20
+  identity:
+    keywords: [KFTC, Fair Trade Commission, business combination review]
+    notes: |
+      v0.2 critical gateway actor. Review delay is a deal-lifecycle risk
+      amplifier, not a background regulatory footnote.
+  sources:
+    - adapter: govt_press
+      params: {ministry: ftc}
+    - adapter: news
+      params: {keywords: [KFTC business combination review, Fair Trade Commission M&A]}
+  schema:
+    market_actions: false
+    policy: true
+    statement: true
+    disclosure: false
+    weight: 0
+  decision_variables: null
+  notes: v0.2 FTC gateway actor.
+
+- id: private_equity_fund_template
+  name: Korean Private Equity Fund Template
+  category: investor
+  role: private_equity_fund
+  type: private_equity_fund
+  mvp: false
+  activation: event_triggered
+  utility_prior:
+    exit_within_5_years: 0.90
+    irr_target_15_to_25_percent: 0.95
+    operational_improvement: 0.60
+    post_exit_acquirer_relationship: 0.40
+  identity:
+    keywords: [MBK Partners, IMM PE, Hahn and Company, STIC Investments, VIG Partners]
+    notes: v0.2 private-equity template for Korean M&A buyer/seller modeling.
+  sources:
+    - adapter: news
+      params: {keywords: [private equity Korea M&A, MBK Partners, IMM PE]}
+  schema:
+    market_actions: false
+    statement: true
+    disclosure: false
+    weight: 0
+  decision_variables: null
+
+- id: mofcom
+  name: 중국 상무부
+  category: external
+  role: foreign_state
+  mvp: false
+  activation: event_triggered
+  identity:
+    keywords: [중국 상무부, 한한령, 한중 무역]
+  sources:
+    - adapter: news
+      params: {keywords: [중국 상무부, 한한령]}
+  schema:
+    policy: true
+    statement: true
+    weight: 0
+  decision_variables: null
