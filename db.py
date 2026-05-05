@@ -14,6 +14,7 @@ Two table families:
 - states           : 4-axis snapshot per actor per tick
 - events           : every event that flowed through the world (sim-events)
 - decisions        : raw + parsed decision output per actor per tick
+- decision_journal : pre-registered hypotheses + outcomes + Brier score
 - market_pressure  : aggregated market_action pressure per asset per tick
 - edges            : bidirectional sim-graph connections between actors
 
@@ -127,6 +128,25 @@ CREATE TABLE IF NOT EXISTS decisions (
     PRIMARY KEY (actor_id, tick)
 );
 
+CREATE TABLE IF NOT EXISTS decision_journal (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp            TEXT NOT NULL,
+    hypothesis           TEXT NOT NULL,
+    affected_tickers_json TEXT NOT NULL,
+    model_implied_prob   REAL NOT NULL,
+    market_implied_prob  REAL,
+    conviction_score     REAL,
+    kelly_fraction       REAL,
+    position_size_won    INTEGER,
+    expected_outcome_t1  TEXT,
+    expected_outcome_t30 TEXT,
+    actual_outcome_t1    TEXT,
+    actual_outcome_t30   TEXT,
+    lessons              TEXT,
+    brier_score          REAL,
+    metadata_json        TEXT
+);
+
 CREATE TABLE IF NOT EXISTS market_pressure (
     tick              INTEGER NOT NULL,
     asset             TEXT NOT NULL,
@@ -146,6 +166,7 @@ CREATE TABLE IF NOT EXISTS edges (
 
 CREATE INDEX IF NOT EXISTS idx_events_tick    ON events(tick);
 CREATE INDEX IF NOT EXISTS idx_events_source  ON events(source);
+CREATE INDEX IF NOT EXISTS idx_journal_ts     ON decision_journal(timestamp);
 CREATE INDEX IF NOT EXISTS idx_docs_source    ON documents(source);
 CREATE INDEX IF NOT EXISTS idx_docs_published ON documents(published_at);
 CREATE INDEX IF NOT EXISTS idx_vars_spec      ON variables(spec_id);
@@ -246,6 +267,73 @@ def insert_market_pressure(
     con.execute(
         "INSERT OR REPLACE INTO market_pressure (tick, asset, net_pressure, contributors_json) VALUES (?, ?, ?, ?)",
         (tick, asset, net_pressure, json.dumps(contributors, ensure_ascii=False)),
+    )
+
+
+def insert_decision_journal_entry(
+    con: sqlite3.Connection,
+    *,
+    timestamp: str,
+    hypothesis: str,
+    affected_tickers: list[str],
+    model_implied_prob: float,
+    market_implied_prob: float | None = None,
+    conviction_score: float | None = None,
+    kelly_fraction: float | None = None,
+    position_size_won: int | None = None,
+    expected_outcome_t1: str | None = None,
+    expected_outcome_t30: str | None = None,
+    metadata: dict | None = None,
+) -> int:
+    """Persist a pre-trade/pre-signal hypothesis for calibration tracking."""
+    cur = con.execute(
+        "INSERT INTO decision_journal "
+        "(timestamp, hypothesis, affected_tickers_json, model_implied_prob, "
+        "market_implied_prob, conviction_score, kelly_fraction, position_size_won, "
+        "expected_outcome_t1, expected_outcome_t30, metadata_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            timestamp,
+            hypothesis,
+            json.dumps(affected_tickers, ensure_ascii=False),
+            float(model_implied_prob),
+            market_implied_prob,
+            conviction_score,
+            kelly_fraction,
+            position_size_won,
+            expected_outcome_t1,
+            expected_outcome_t30,
+            json.dumps(metadata, ensure_ascii=False) if metadata else None,
+        ),
+    )
+    return cur.lastrowid
+
+
+def update_decision_journal_outcome(
+    con: sqlite3.Connection,
+    journal_id: int,
+    *,
+    actual_outcome_t1: str | None = None,
+    actual_outcome_t30: str | None = None,
+    realized_event: bool | None = None,
+    lessons: str | None = None,
+) -> None:
+    """Attach outcomes and compute Brier score when realized_event is known."""
+    row = con.execute(
+        "SELECT model_implied_prob FROM decision_journal WHERE id=?",
+        (journal_id,),
+    ).fetchone()
+    if not row:
+        raise KeyError(f"unknown decision_journal id={journal_id}")
+    brier = None
+    if realized_event is not None:
+        p = max(0.0, min(1.0, float(row[0])))
+        y = 1.0 if realized_event else 0.0
+        brier = (p - y) ** 2
+    con.execute(
+        "UPDATE decision_journal SET actual_outcome_t1=?, actual_outcome_t30=?, "
+        "lessons=?, brier_score=? WHERE id=?",
+        (actual_outcome_t1, actual_outcome_t30, lessons, brier, journal_id),
     )
 
 
@@ -390,7 +478,7 @@ def summary(con: sqlite3.Connection) -> dict[str, int]:
     counts = {}
     for table in ("documents", "variables", "raw_events", "ingestion_runs",
                   "actor_calibrations",
-                  "actors", "states", "events", "decisions",
+                  "actors", "states", "events", "decisions", "decision_journal",
                   "market_pressure", "edges"):
         counts[table] = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
     return counts

@@ -703,3 +703,203 @@
     statement: true
     weight: 0
   decision_variables: null
+
+- id: professional_executive_template
+  name: Professional executive (non-owner)
+  category: chaebol
+  role: professional_executive
+  type: professional_executive
+  mvp: false
+  activation: event_triggered
+  attributes:
+    typical_tenure_total_years: 6
+    succession_plan_uncertainty: 0.5
+    performance_visibility_horizon_years: 2
+  utility_prior:
+    visible_results_within_tenure: 0.85
+    organizational_autonomy_signal: 0.70
+    post_retirement_directorship_prospects: 0.40
+    financial_compensation: 0.30
+  identity:
+    keywords: [전문경영인, 사장, 부사장, 대표이사, 사임]
+    notes: |
+      v0.2 §1.4 template. Korean professional executives optimize for
+      visible results within their fixed tenure (typically 5-7 yrs) more
+      than financial compensation. Use for chaebol_cfo_* / division CEO
+      decision modeling when no owner-family seat overrides them.
+  sources:
+    - adapter: dart
+      params: {filing_types: [임원·주요주주, 사업보고서]}
+    - adapter: news
+      params: {keywords: [대표이사 변경, 임원 임기, 임원 사임]}
+  schema:
+    market_actions: false
+    policy: false
+    statement: true
+    disclosure: true
+    weight: 0
+  decision_variables: null
+
+# ============================================================================
+# v0.4 reform-regime actors
+# ============================================================================
+
+- id: activist_fund_align_partners
+  name: Align Partners Capital Management
+  category: investor
+  role: activist_fund
+  type: activist_fund_korea_focused
+  mvp: true
+  activation: event_triggered
+  attributes:
+    aum_usd: 530_000_000
+    founded_year: 2021
+    decision_horizon_years: 3
+    typical_position_size_pct_min: 1
+    typical_position_size_pct_max: 5
+  utility_prior:
+    irr_target_25_to_40_percent: 0.95
+    exit_within_2_to_4_years: 0.85
+    governance_change_publicity: 0.70
+    shareholder_value_unlock_via_legal_action: 0.80
+  campaign_methods:
+    - five_pct_filing
+    - shareholder_proposal
+    - proxy_fight
+    - lawsuit_under_amended_fiduciary_duty
+  identity:
+    keywords: [Align Partners, 얼라인파트너스, 두산밥캣 행동주의, SK스퀘어 캠페인]
+    notes: |
+      v0.4 §2.1 활동주의 actor. 충실의무 확대(2025-07-22) 이후 소수주주
+      소송 가능성 + 자사주 강제 소각 추진 reform과 결합되어 영향력 확대.
+  sources:
+    - adapter: dart
+      params: {filing_types: [주식등의대량보유, 임시주주총회]}
+    - adapter: news
+      params: {keywords: [Align Partners, 얼라인파트너스]}
+  schema:
+    market_actions: true
+    policy: false
+    statement: true
+    disclosure: true
+    weight: 0.05
+  decision_variables: null
+
+- id: activist_fund_palliser_capital
+  name: Palliser Capital
+  category: investor
+  role: activist_fund
+  type: activist_fund_korea_focused
+  mvp: false
+  activation: event_triggered
+  utility_prior:
+    irr_target_25_to_40_percent: 0.95
+    exit_within_2_to_4_years: 0.80
+    governance_change_publicity: 0.75
+  identity:
+    keywords: [Palliser Capital, 팔리저 캐피탈, SK Square Palliser]
+    notes: SK Square를 포함한 한국 holding company governance unlock 캠페인.
+  sources:
+    - adapter: dart
+      params: {filing_types: [주식등의대량보유]}
+    - adapter: news
+      params: {keywords: [Palliser, 팔리저]}
+  schema:
+    market_actions: true
+    statement: true
+    disclosure: true
+    weight: 0.03
+  decision_variables: null
+
+- id: activist_fund_oasis_management
+  name: Oasis Management (Korea team)
+  category: investor
+  role: activist_fund
+  type: activist_fund_korea_focused
+  mvp: false
+  activation: event_triggered
+  utility_prior:
+    irr_target_25_to_40_percent: 0.90
+    exit_within_2_to_4_years: 0.80
+    governance_change_publicity: 0.65
+  identity:
+    keywords: [Oasis Management, 오아시스 매니지먼트]
+    notes: 2025년 Korea team 확대 announce. 외국 hedge fund의 한국화 흐름.
+  sources:
+    - adapter: news
+      params: {keywords: [Oasis Management Korea, 오아시스 한국]}
+  schema:
+    market_actions: true
+    statement: true
+    weight: 0.02
+  decision_variables: null
+
+- id: minority_shareholder_plaintiff_template
+  name: Minority shareholder plaintiff (post-2025-07-22)
+  category: investor
+  role: shareholder_plaintiff
+  type: minority_shareholder_plaintiff
+  mvp: false
+  activation: event_triggered
+  attributes:
+    enforcement_friction:
+      - no_discovery_system
+      - burden_of_proof_on_plaintiff
+      - limited_class_action_scope
+    effectiveness_trend: increasing  # v0.4 §2.3
+  triggers:
+    - merger_ratio_unfavorable_to_minority
+    - treasury_share_use_for_control_purposes
+    - intra_group_transaction_at_unfair_terms
+    - subsidiary_ipo_diluting_parent_shareholders
+  identity:
+    keywords: [소수주주 소송, 이사 충실의무 위반, 합병비율 소송]
+    notes: |
+      v0.4 §2.3 신규 actor. 2025-07-22 충실의무 확대 이후 등장 가능한
+      "이사 충실의무 위반" 직접 소송 player. 시간이 흐르며 enforcement
+      effectiveness 상승.
+  sources:
+    - adapter: news
+      params: {keywords: [소수주주 소송, 충실의무 위반, 합병비율 무효]}
+  schema:
+    market_actions: false
+    policy: false
+    statement: true
+    disclosure: false
+    weight: 0
+  decision_variables: null
+
+- id: kospi_5000_special_committee
+  name: 더불어민주당 KOSPI 5000 특별위원회
+  category: politics
+  role: policy_drafting_subgroup
+  type: policy_drafting_subgroup
+  parent: opposition_party_leader
+  mvp: true
+  activation: always_on
+  current_members:
+    - 김남근
+    - 오기형
+  policy_pipeline:
+    - treasury_share_mandatory_cancellation
+    - mandatory_tender_offer
+    - stewardship_code_review
+    - dividend_taxation_reform
+    - breach_of_trust_business_judgment_rule
+  identity:
+    keywords: [KOSPI 5000 특별위원회, 자사주 강제 소각, 의무공개매수]
+    notes: |
+      v0.4 §2.4 reform legislation pipeline의 leading indicator. 위원회
+      발언·언론 노출이 입법 timing을 미리 알려주는 신호. 정책 통과
+      timing prior의 핵심 input.
+  sources:
+    - adapter: assembly
+      params: {keywords: [KOSPI 5000 특별위원회, 자사주 강제 소각, 의무공개매수]}
+    - adapter: news
+      params: {keywords: [김남근 의원, 오기형 의원, 더불어민주당 자사주]}
+  schema:
+    market_actions: false
+    policy: true
+    statement: true
+    weight: 0
+  decision_variables: null
