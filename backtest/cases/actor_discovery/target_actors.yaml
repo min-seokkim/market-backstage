@@ -1,0 +1,82 @@
+# Actor Discovery target actors
+#
+# Question: starting from a seed actor catalog that *excludes* these 7
+# entries, can the agenda extractor propose them from broad document ingest
+# over a 6-month window?
+#
+# Acceptance: 5/7 discovered, 3/7 with trust ≥ 0.7.
+
+actors:
+  - id: kim_nam_geun
+    name: 김남근 의원
+    category: politics
+    role: legislator
+    identity_hints:
+      - 김남근
+      - 더불어민주당 김남근
+      - KOSPI 5000 특별위원회
+    rationale: |
+      자사주 강제 소각 발의자. 거버넌스 reform regime의 leading-indicator
+      legislator. seed에 의도적으로 제외해 LLM이 추출하는지 검증.
+
+  - id: oh_ki_hyung
+    name: 오기형 의원
+    category: politics
+    role: legislator
+    identity_hints:
+      - 오기형
+      - 더불어민주당 오기형
+      - 의무공개매수
+    rationale: 의무공개매수 추진 의원. KOSPI 5000 특별위원회 활동.
+
+  - id: align_partners
+    name: Align Partners Capital Management
+    category: investor
+    role: activist_fund
+    identity_hints:
+      - Align Partners
+      - 얼라인파트너스
+      - 이창환 대표
+    rationale: |
+      이미 active actor catalog에 등록되어 있다. 이 case는
+      *seed에서 제거한 catalog 사본*을 기반으로 backtest 실행 시 LLM이
+      재발견하는지 확인. (Actor discovery의 본질은 어떤 catalog state에서도
+      얼마나 빨리 충원되는가.)
+
+  - id: oasis_management_korea
+    name: Oasis Management Korea team
+    category: investor
+    role: activist_fund
+    identity_hints:
+      - Oasis Management
+      - 오아시스 매니지먼트
+
+  - id: palliser_capital
+    name: Palliser Capital
+    category: investor
+    role: activist_fund
+    identity_hints:
+      - Palliser Capital
+      - 팔리저 캐피탈
+      - SK Square Palliser
+
+  - id: miri_capital
+    name: Miri Capital
+    category: investor
+    role: activist_fund
+    identity_hints:
+      - Miri Capital
+      - 미리 캐피탈
+
+  - id: kcgi
+    name: KCGI
+    category: investor
+    role: activist_fund
+    identity_hints:
+      - KCGI
+      - 강성부 펀드
+
+metrics:
+  discovered_min: 5
+  discovered_high_trust_min: 3   # trust >= 0.7
+  high_trust_threshold: 0.7

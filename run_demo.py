@@ -12,10 +12,11 @@
 없으면 weak_default + RuleBasedActor 로 graceful 작동.
 
 CLI:
-  python run_demo.py                 # 기본 (RuleBased + LLM 사용 가능 시 calibration)
-  python run_demo.py --no-llm        # LLM 호출 전부 skip (RuleBased + weak default)
-  python run_demo.py --ticks 3       # tick 횟수 변경
-  python run_demo.py --since 14      # 며칠치 데이터 fetch
+  python run_demo.py                       # 기본 (RuleBased + LLM 사용 가능 시 calibration)
+  python run_demo.py --no-llm              # LLM 호출 전부 skip (RuleBased + weak default)
+  python run_demo.py --ticks 3             # tick 횟수 변경
+  python run_demo.py --ingest-since 14     # ingest backfill window (default: 365)
+  python run_demo.py --calibrate-since 7   # actor calibration window (default: 30)
 """
 
 from __future__ import annotations
@@ -28,9 +29,9 @@ from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 
-import db
-from event import shock as mk_shock
-from world import prepare
+import persistence as db
+from core.event import shock as mk_shock
+from runtime.prepare import prepare
 
 load_dotenv()
 
@@ -44,12 +45,21 @@ def main():
     p.add_argument("--no-llm", action="store_true",
                    help="force RuleBasedActor (no LLM in decide()); calibration still uses LLM if key available")
     p.add_argument("--ticks", type=int, default=2)
-    p.add_argument("--since", type=int, default=14, help="days of history to fetch / use")
+    p.add_argument("--ingest-since", type=int, default=365,
+                   help="days of history to fetch (ingest backfill window)")
+    p.add_argument("--calibrate-since", type=int, default=30,
+                   help="days of history for actor calibration "
+                        "(narrower than ingest window so calibration "
+                        "reflects current stance, not 1y-ago behavior)")
     p.add_argument("--fresh", action="store_true", default=True,
                    help="recreate DB from scratch (default true)")
     p.add_argument("--keep-db", dest="fresh", action="store_false",
                    help="keep existing DB rows (additive ingest)")
     p.add_argument("--shock-severity", type=float, default=0.75)
+    p.add_argument("--rebuild-assembly-summaries", action="store_true",
+                   help="(one-off) backfill BPMBILLSUMMARY into existing "
+                        "assembly docs and exit. Respects "
+                        "ASSEMBLY_DAILY_CALL_BUDGET.")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO,
@@ -57,13 +67,28 @@ def main():
     log = logging.getLogger("demo")
 
     # 0. DB
-    con = db.init(fresh=args.fresh)
-    log.info("DB ready (fresh=%s)", args.fresh)
+    # Rebuild path operates on whatever is already in DB; never recreate.
+    fresh = False if args.rebuild_assembly_summaries else args.fresh
+    con = db.init(fresh=fresh)
+    log.info("DB ready (fresh=%s)", fresh)
+
+    # Optional one-off: backfill SUMMARY into existing assembly docs.
+    if args.rebuild_assembly_summaries:
+        from ingest.assembly import rebuild_summaries
+        api_key = os.environ.get("ASSEMBLY_API_KEY")
+        if not api_key:
+            log.error("ASSEMBLY_API_KEY not set — cannot rebuild summaries")
+            con.close()
+            return
+        counts = rebuild_summaries(con, api_key)
+        print(f"rebuild_assembly_summaries: {counts}")
+        con.close()
+        return
 
     # 1. choose actor class
     actor_cls = None
     if args.no_llm or not os.environ.get("ANTHROPIC_API_KEY"):
-        from actor import RuleBasedActor
+        from core.actor import RuleBasedActor
         actor_cls = RuleBasedActor
         log.info("using RuleBasedActor")
     else:
@@ -72,7 +97,7 @@ def main():
             actor_cls = LLMBackedActor
             log.info("using LLMBackedActor")
         except Exception as e:
-            from actor import RuleBasedActor
+            from core.actor import RuleBasedActor
             actor_cls = RuleBasedActor
             log.warning("LLMBackedActor unavailable (%s); using RuleBasedActor", e)
 
@@ -81,7 +106,8 @@ def main():
         con,
         run_ingest=not args.no_ingest,
         run_calibration=not args.no_calibration,
-        since_days=args.since,
+        ingest_since_days=args.ingest_since,
+        calibrate_since_days=args.calibrate_since,
         actor_cls=actor_cls,
         mvp_only=True,
     )

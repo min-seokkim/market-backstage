@@ -458,7 +458,7 @@ _VARS_MARKET = [
 ]
 
 # ============================================================================
-# v0.2 Deal lifecycle / committee variables
+# Deal lifecycle / committee variables
 # ============================================================================
 
 _VARS_DEAL_LIFECYCLE = [
@@ -472,7 +472,7 @@ _VARS_DEAL_LIFECYCLE = [
         categorical_labels=("pending", "partial", "complete", "blocked"),
         tier=2,
         affects_actors=("chaebol_chair_hyundai", "hmc_ma_committee", "ftc_chair"),
-        notes="v0.2: active deal condition-precedent progress.",
+        notes="Active deal condition-precedent progress.",
     ),
     VariableSpec(
         id="deal_ftc_review_stage",
@@ -485,7 +485,7 @@ _VARS_DEAL_LIFECYCLE = [
         tier=2,
         affects_actors=("ftc_chair", "fair_trade_commission", "hmc_ma_committee",
                         "foreign_active_event_driven", "nps_cio"),
-        notes="v0.2: FTC is a critical gateway for large Korean M&A.",
+        notes="FTC is a critical gateway for large Korean M&A.",
     ),
     VariableSpec(
         id="deal_market_change_since_signing",
@@ -548,7 +548,7 @@ _VARS_DEAL_LIFECYCLE = [
         kind="numeric",
         tier=3,
         affects_actors=("hmc_ma_committee", "chaebol_chair_hyundai"),
-        notes="v0.2: manufacturing M&A decisions place 80-90% weight here.",
+        notes="Manufacturing M&A decisions place 80-90% weight here.",
     ),
     VariableSpec(
         id="executive_tenure_remaining_months",
@@ -569,7 +569,7 @@ _VARS_DEAL_LIFECYCLE = [
         kind="numeric",
         tier=2,
         affects_actors=("chaebol_chair_hyundai", "hmc_ma_committee"),
-        notes="v0.2: Korean JV absorption prior rises around years 5-15.",
+        notes="Korean JV absorption prior rises around years 5-15.",
     ),
     VariableSpec(
         id="stock_swap_ongoing_value_risk",
@@ -632,7 +632,7 @@ _VARS_DEAL_LIFECYCLE = [
 ]
 
 # ============================================================================
-# v0.3: Academic-literature-backed mechanisms
+# Academic-literature-backed mechanisms
 # ============================================================================
 
 _VARS_V03_TUNNELING = [
@@ -648,7 +648,7 @@ _VARS_V03_TUNNELING = [
         affects_actors=("chaebol_chair_samsung", "chaebol_chair_sk", "chaebol_chair_hyundai",
                         "chaebol_chair_lg", "chaebol_chair_lotte", "nps_cio",
                         "foreign_active_event_driven"),
-        notes="v0.3 §1: Almeida & Wolfenzon 2006 pyramid layer classification.",
+        notes="Almeida & Wolfenzon 2006 pyramid layer classification.",
     ),
     VariableSpec(
         id="firm_family_cash_flow_right",
@@ -670,7 +670,7 @@ _VARS_V03_TUNNELING = [
         kind="numeric",
         tier=2,
         affects_actors=("nps_cio", "foreign_active_event_driven", "activist_fund_align_partners"),
-        notes="v0.3 §1.3: Higher wedge → higher tunneling motive.",
+        notes="Higher wedge → higher tunneling motive.",
     ),
     VariableSpec(
         id="group_propping_flow_quarterly",
@@ -697,7 +697,7 @@ _VARS_V03_POLITICAL_NETWORK = [
         affects_actors=("president", "ruling_party_leader", "opposition_party_leader",
                         "chaebol_chair_samsung", "chaebol_chair_sk", "chaebol_chair_hyundai",
                         "chaebol_chair_lg", "chaebol_chair_lotte"),
-        notes="v0.3 §6: Choi 2025 NPE — domestic-asymmetric alpha source.",
+        notes="Choi 2025 NPE — domestic-asymmetric alpha source.",
     ),
     VariableSpec(
         id="political_theme_lifecycle_stage",
@@ -711,7 +711,7 @@ _VARS_V03_POLITICAL_NETWORK = [
                             "policy_implementation", "policy_disappointment"),
         tier=3,
         affects_actors=("retail", "foreign_active_em_macro"),
-        notes="v0.3 §7: backtest-able stage-by-stage return base rates.",
+        notes="Backtest-able stage-by-stage return base rates.",
     ),
     VariableSpec(
         id="family_wedding_event_relationship",
@@ -725,7 +725,7 @@ _VARS_V03_POLITICAL_NETWORK = [
         tier=3,
         affects_actors=("samsung_family_dispute", "lotte_family_dispute",
                         "chaebol_chair_samsung", "chaebol_chair_lotte"),
-        notes="v0.3 §6.4: Bunkanwanicha et al. CAR effects.",
+        notes="Bunkanwanicha et al. CAR effects (chaebol-nouveaux strongest).",
     ),
 ]
 
@@ -740,7 +740,7 @@ _VARS_V03_KOREA_DISCOUNT = [
         kind="numeric",
         tier=3,
         affects_actors=("foreign_active_em_macro", "foreign_passive", "nps_cio"),
-        notes="v0.3 §8: Choi & Pae 2024 decomposition.",
+        notes="Choi & Pae 2024 Korea Discount decomposition.",
     ),
     VariableSpec(
         id="kd_growth_factor",
@@ -772,12 +772,12 @@ _VARS_V03_KOREA_DISCOUNT = [
         tier=3,
         affects_actors=("president", "foreign_active_em_macro", "foreign_passive",
                         "bok_governor"),
-        notes="v0.3 §5: IMF WP 2021/251 construction.",
+        notes="IMF WP 2021/251 GPRNK construction.",
     ),
 ]
 
 # ============================================================================
-# v0.4: Reform regime change variables
+# Reform regime change variables (2025-2026 governance reform)
 # ============================================================================
 
 _VARS_V04_REFORM = [
@@ -798,7 +798,7 @@ _VARS_V04_REFORM = [
                         "chaebol_chair_lg", "chaebol_chair_lotte",
                         "activist_fund_align_partners", "nps_cio",
                         "foreign_active_em_macro"),
-        notes="v0.4 §0: regime-change timeline driver.",
+        notes="Regime-change timeline driver.",
     ),
     VariableSpec(
         id="fiduciary_duty_enforcement_strength",
@@ -813,7 +813,7 @@ _VARS_V04_REFORM = [
                         "chaebol_chair_lg", "chaebol_chair_lotte",
                         "minority_shareholder_plaintiff_template",
                         "activist_fund_align_partners"),
-        notes="v0.4 §1: ramps from 0 (2025-07-22) to ~0.9 over ~2 years.",
+        notes="Ramps from 0 (2025-07-22 충실의무 확대) to ~0.9 over ~2 years.",
     ),
     VariableSpec(
         id="treasury_cancellation_count_ytd",
@@ -825,7 +825,7 @@ _VARS_V04_REFORM = [
         tier=2,
         affects_actors=("foreign_active_em_macro", "nps_cio", "retail",
                         "activist_fund_align_partners"),
-        notes="v0.4 §0.2: 206건 in 2025-01..08 — pre-emptive policy signal.",
+        notes="206 cases in 2025-01..08 — pre-emptive policy signal.",
     ),
     VariableSpec(
         id="activist_fund_korea_focused_aum_usd",
@@ -840,7 +840,7 @@ _VARS_V04_REFORM = [
                         "activist_fund_oasis_management",
                         "chaebol_chair_samsung", "chaebol_chair_sk",
                         "chaebol_chair_hyundai", "chaebol_chair_lg", "chaebol_chair_lotte"),
-        notes="v0.4 §2.1: forward target 3-8B USD by 2027.",
+        notes="Forward target 3-8B USD by 2027.",
     ),
     VariableSpec(
         id="value_up_cycle_phase",
@@ -858,7 +858,7 @@ _VARS_V04_REFORM = [
         tier=3,
         affects_actors=("foreign_active_em_macro", "foreign_passive", "nps_cio",
                         "retail", "activist_fund_align_partners"),
-        notes="v0.4 §4.1: feedback-loop phase indicator.",
+        notes="Reform reflexivity feedback-loop phase indicator.",
     ),
     VariableSpec(
         id="kospi_target_gap_5000",
@@ -871,7 +871,7 @@ _VARS_V04_REFORM = [
         affects_actors=("president", "kospi_5000_special_committee",
                         "opposition_party_leader", "ruling_party_leader",
                         "fsc_chair"),
-        notes="v0.4 §8.1: drives DemocraticPartyReformPushIntensity in DBN.",
+        notes="Drives DemocraticPartyReformPushIntensity in causal graph.",
     ),
     VariableSpec(
         id="business_lobby_resistance_intensity",
@@ -898,7 +898,7 @@ _VARS_V04_REFORM = [
         affects_actors=("activist_fund_align_partners", "private_equity_fund_template",
                         "chaebol_chair_samsung", "chaebol_chair_hyundai",
                         "foreign_active_event_driven", "nps_cio"),
-        notes="v0.4 §3.3: triggers M&A market capacity contraction when in force.",
+        notes="Triggers M&A market capacity contraction when in force.",
     ),
 ]
 
@@ -944,6 +944,32 @@ def coverage() -> dict[str, int]:
         by_tier[v.tier] = by_tier.get(v.tier, 0) + 1
     return {"total": len(VARIABLE_CATALOG),
             "by_source": by_src, "by_tier": by_tier}
+
+
+# ---- Dynamic catalog read ------------------------------------------------
+
+def all_active_variables(con) -> list[VariableSpec]:
+    """Read currently-active variable specs from the dynamic registry.
+
+    Falls back to VARIABLE_CATALOG if the *_dyn table is empty.
+    """
+    import persistence as _db
+    rows = _db.fetch_active_variable_specs(con)
+    if not rows:
+        return list(VARIABLE_CATALOG)
+    return [VariableSpec(
+        id=r["id"], label=r["label"], source=r["source"],
+        source_params=r["source_params"], frequency=r["frequency"] or "daily",
+        kind=r["kind"] or "numeric",
+        categorical_labels=r["categorical_labels"],
+        tier=r["tier"] or 1,
+        affects_actors=r["affects_actors"],
+        notes=r["notes"],
+    ) for r in rows]
+
+
+def active_variables_by_id(con) -> dict[str, VariableSpec]:
+    return {v.id: v for v in all_active_variables(con)}
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 from . import IngestResult, IngestedVariable, run_adapter
-from variables import VARIABLE_CATALOG
+from catalog.variables import VARIABLE_CATALOG
 
 load_dotenv()
 log = logging.getLogger(__name__)

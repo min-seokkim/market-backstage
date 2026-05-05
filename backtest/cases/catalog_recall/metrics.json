@@ -1,0 +1,131 @@
+{
+  "events": {
+    "commercial_act_first_pass_2025_07_03": {
+      "label": "1차 상법 개정 통과 (이사 충실의무 확대)",
+      "emergence_date": "2025-07-03",
+      "caught_at": null,
+      "latency_days": null,
+      "via": null,
+      "trust": null,
+      "corpus_first_doc_ts": null
+    },
+    "treasury_share_mandatory_cancellation_proposal_2025_07_09": {
+      "label": "자사주 의무 소각 입법 추진 발표",
+      "emergence_date": "2025-07-09",
+      "caught_at": null,
+      "latency_days": null,
+      "via": null,
+      "trust": null,
+      "corpus_first_doc_ts": null
+    },
+    "hmm_treasury_retire_2025_08": {
+      "label": "HMM 2.2조 자사주 소각 발표",
+      "emergence_date": "2025-08-15",
+      "caught_at": null,
+      "latency_days": null,
+      "via": null,
+      "trust": null,
+      "corpus_first_doc_ts": "2025-10-01T07:00:00+00:00"
+    },
+    "commercial_act_second_pass_2025_08_25": {
+      "label": "2차 상법 개정 통과 (집중투표·감사위원·3% rule)",
+      "emergence_date": "2025-08-25",
+      "caught_at": null,
+      "latency_days": null,
+      "via": null,
+      "trust": null,
+      "corpus_first_doc_ts": "2026-04-30T00:00:00+00:00"
+    },
+    "kospi_5000_special_committee_active_2025_08": {
+      "label": "KOSPI 5000 특별위원회 활동 본격화",
+      "emergence_date": "2025-08-01",
+      "caught_at": null,
+      "latency_days": null,
+      "via": null,
+      "trust": null,
+      "corpus_first_doc_ts": null
+    },
+    "yellow_envelope_act_passed_2025_08_26": {
+      "label": "노란봉투법 통과 (노조 권리 확대)",
+      "emergence_date": "2025-08-26",
+      "caught_at": null,
+      "latency_days": null,
+      "via": null,
+      "trust": null,
+      "corpus_first_doc_ts": null
+    },
+    "corporate_tax_increase_2025_09": {
+      "label": "법인세 24→25% 인상",
+      "emergence_date": "2025-09-01",
+      "caught_at": null,
+      "latency_days": null,
+      "via": null,
+      "trust": null,
+      "corpus_first_doc_ts": null
+    },
+    "lee_jaemyung_nyse_visit_2025_09_25": {
+      "label": "이재명 대통령 NYSE 종 타종",
+      "emergence_date": "2025-09-25",
+      "caught_at": null,
+      "latency_days": null,
+      "via": null,
+      "trust": null,
+      "corpus_first_doc_ts": null
+    },
+    "mandatory_tender_offer_govt_party_agreement_2025_12_04": {
+      "label": "의무공개매수 정부-여당 합의",
+      "emergence_date": "2025-12-04",
+      "caught_at": null,
+      "latency_days": null,
+      "via": null,
+      "trust": null,
+      "corpus_first_doc_ts": "2026-04-28T00:00:00+00:00"
+    },
+    "align_partners_doosan_bobcat_campaign_2025_q4": {
+      "label": "Align Partners 두산밥캣 캠페인",
+      "emergence_date": "2025-10-01",
+      "caught_at": null,
+      "latency_days": null,
+      "via": null,
+      "trust": null,
+      "corpus_first_doc_ts": "2026-04-13T07:00:00+00:00"
+    },
+    "oasis_korea_team_expansion_2025_q4": {
+      "label": "Oasis Management 한국팀 확대",
+      "emergence_date": "2025-10-15",
+      "caught_at": null,
+      "latency_days": null,
+      "via": null,
+      "trust": null,
+      "corpus_first_doc_ts": null
+    },
+    "capital_gains_tax_reform_2025_09": {
+      "label": "자본이득세 reform 발표",
+      "emergence_date": "2025-09-15",
+      "caught_at": null,
+      "latency_days": null,
+      "via": null,
+      "trust": null,
+      "corpus_first_doc_ts": null
+    }
+  },
+  "summary": {
+    "corpus_signal_rate": 0.333,
+    "recall": 0.0,
+    "extractor_gap": 0.333,
+    "avg_latency_days": null,
+    "precision": 0.0,
+    "caught_count": 0,
+    "corpus_hit_count": 4,
+    "target_count": 12,
+    "non_seed_proposals": 0,
+    "finished_extraction_runs": 0,
+    "note": "no extraction runs in DB -- recall reflects baseline only (extractor not yet run; all *_dyn rows are hardcoded seed)",
+    "passed": false
+  },
+  "expected_metrics": {
+    "recall_min": 0.75,
+    "avg_latency_max_days": 7,
+    "precision_min": 0.6
+  }
+}

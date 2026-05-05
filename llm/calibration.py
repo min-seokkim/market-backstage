@@ -1,7 +1,7 @@
 """Calibration — Phase 3 핵심.
 
 각 actor에 대해:
-1. db.fetch_documents_for_actor 로 최근 N일 ingest된 actor-관련 문서 수집.
+1. fetch_documents_for_actor 로 최근 N일 ingest된 actor-관련 문서 수집.
 2. 문서 텍스트 + actor identity + actor의 decision_variables를 LLM에 보내
    PsychologicalTraits / InterestStructure / belief_priors / AffectiveState
    를 한 번에 추정.
@@ -11,23 +11,23 @@
 - 하드코딩 없음. 모든 행동·이해관계 파라미터는 *crawl된 1차자료에서* 산출.
 - LLM에게 "이 actor가 최근 어떻게 행동·발언했는가"를 보고 traits·interests를
   estimate하도록 지시. 단순 페르소나 묘사 X, 데이터 기반 추정 O.
-- 문서가 적거나 없으면 conservative weak prior로 fallback (모두 중간 값).
+- 문서가 적거나 없으면 conservative weak prior로 fallback.
 - prompt cache: actor identity + 변수 카탈로그(static) → cache.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import time
-from dataclasses import asdict, fields
+from dataclasses import fields
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import db
-import llm
-from psyche import AffectiveState, InterestStructure, PsychologicalTraits
-from variables import VARIABLES_BY_ID
+import persistence as db
+from core.psyche import PsychologicalTraits
+from catalog.variables import VARIABLES_BY_ID
+
+from . import client as llm
 
 log = logging.getLogger(__name__)
 
@@ -95,8 +95,7 @@ JSON_SCHEMA_HINT = f"""\
     "rationale": "왜 이 가중치인지 1-2문장"
   }},
   "belief_priors": {{
-    "변수id": {{"label1": 0.3, "label2": 0.5, "label3": 0.2}},
-    ...
+    "변수id": {{"label1": 0.3, "label2": 0.5, "label3": 0.2}}
   }},
   "affect": {{                     // 초기 affective state, 평소 baseline
     "fear": 0.0, "greed": 0.0, "uncertainty": 0.5, "urgency": 0.0, "morale": 0.5
@@ -177,10 +176,8 @@ def build_user_prompt(entry: dict, docs: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 
-# Role-aware fallback trait priors. Used ONLY when LLM-based calibration is
-# unavailable (no API key, fetch failures, etc). Real operation should
-# replace these via calibrate(). These are not authoritative — just minimal
-# sane priors per role so the simulator runs without a key.
+# Role-aware fallback trait priors — used ONLY when LLM-based calibration
+# is unavailable. Real operation should replace these via calibrate().
 ROLE_TRAIT_PRIORS: dict[str, dict] = {
     "head_of_state":      {"loss_aversion": 1.8, "recency_bias": 0.5,
                            "political_sensitivity": 0.95, "horizon_ticks": 8,
@@ -221,13 +218,7 @@ ROLE_TRAIT_PRIORS: dict[str, dict] = {
 
 
 def _weak_default(entry: dict) -> dict:
-    """No-data fallback. Used when docs empty or LLM fails.
-
-    Trait priors are role-aware (ROLE_TRAIT_PRIORS) — these are *not*
-    hardcoded actor identities, just sane defaults per role-type so the
-    simulator runs without an API key. Calibration with LLM overrides
-    these.
-    """
+    """No-data fallback. Used when docs empty or LLM fails."""
     role = entry.get("role", "")
     decision_vars = entry.get("decision_variables") or []
 
@@ -268,7 +259,7 @@ def _resolve_decision_vars(entry: dict) -> list[str]:
     dvs = entry.get("decision_variables")
     if dvs is not None:
         return list(dvs)
-    from variables import for_actor as variables_for_actor
+    from catalog.variables import for_actor as variables_for_actor
     return [v.id for v in variables_for_actor(entry["id"])]
 
 
@@ -280,7 +271,6 @@ def calibrate(con,
               dry_run: bool = False,
               ) -> dict:
     """Calibrate one actor; persist to actor_calibrations and return result."""
-    # Make a working copy with decision_variables resolved.
     entry = dict(entry)
     entry["decision_variables"] = _resolve_decision_vars(entry)
 
@@ -306,20 +296,16 @@ def calibrate(con,
     log.info("calibrate %s: %d docs (keywords=%s)", entry["id"], len(docs), keywords)
 
     parsed: dict | None = None
-    raw_response: str | None = None
     error: str | None = None
 
-    # Try LLM if API key is available
+    # Try LLM call. Provider router handles api-key / SDK presence
+    # checks and raises a clean error that we catch into weak_default.
     try:
-        import os
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            raise RuntimeError("ANTHROPIC_API_KEY not set")
         if not docs:
             raise RuntimeError("no docs available")
         system = build_system_prompt(entry)
         user = build_user_prompt(entry, docs)
-        raw_response = llm.call(system, user, cache_system=True)
-        parsed = llm.parse_response(raw_response)
+        parsed = llm.call_json(system, user, cache_system=True)
         if not parsed:
             raise RuntimeError("LLM returned unparseable JSON")
     except Exception as e:
@@ -367,7 +353,7 @@ def calibrate_all(con, *,
             results[entry["id"]] = calibrate(
                 con, entry, since_days=since_days, max_docs=max_docs,
             )
-        except Exception as e:
+        except Exception:
             log.exception("calibrate failed for %s", entry["id"])
             results[entry["id"]] = _weak_default(entry)
         time.sleep(0.1)

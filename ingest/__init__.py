@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Protocol
 
-import db
+import persistence as db
 
 
 log = logging.getLogger(__name__)
@@ -96,6 +96,24 @@ def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).isoformat()
 
 
+class _AdapterWarningCapture(logging.Handler):
+    # Captures WARNING+ records from `ingest.*` loggers during a single
+    # adapter run. Adapters silently swallow API rejections (e.g. DART
+    # status=100, ECOS spec failures, news fetch errors) by returning empty
+    # results — those warnings are the *only* signal that something went
+    # wrong, so we surface them on `ingestion_runs.error`.
+    def __init__(self):
+        super().__init__(level=logging.WARNING)
+        self.records: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg = record.getMessage()
+        except Exception:
+            msg = str(record.msg)
+        self.records.append(f"{record.name}: {msg}")
+
+
 def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
     """Fetch + persist; returns {docs, vars, events, dups}."""
     started_at = _iso(datetime.now(timezone.utc))
@@ -103,45 +121,58 @@ def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
     docs = vars_ = events = dups = 0
     err: str | None = None
 
+    warn_capture = _AdapterWarningCapture()
+    ingest_logger = logging.getLogger("ingest")
+    ingest_logger.addHandler(warn_capture)
+
     try:
-        result = adapter.fetch(since)
+        try:
+            result = adapter.fetch(since)
 
-        # Insert documents and remember their assigned ids by index
-        doc_ids: list[int | None] = []
-        for d in result.documents:
-            new_id = db.insert_document(
-                con, source=d.source, url=d.url, title=d.title, body=d.body,
-                published_at=_iso(d.published_at) if d.published_at else None,
-                fetched_at=_iso(d.fetched_at), raw_hash=d.raw_hash,
-                metadata=d.metadata,
-            )
-            if new_id is None:
-                dups += 1
-                # Look up existing id by hash so vars/events can still link
-                row = con.execute(
-                    "SELECT id FROM documents WHERE raw_hash=?", (d.raw_hash,)
-                ).fetchone()
-                doc_ids.append(row[0] if row else None)
-            else:
-                docs += 1
-                doc_ids.append(new_id)
+            # Insert documents and remember their assigned ids by index
+            doc_ids: list[int | None] = []
+            for d in result.documents:
+                new_id = db.insert_document(
+                    con, source=d.source, url=d.url, title=d.title, body=d.body,
+                    published_at=_iso(d.published_at) if d.published_at else None,
+                    fetched_at=_iso(d.fetched_at), raw_hash=d.raw_hash,
+                    metadata=d.metadata,
+                )
+                if new_id is None:
+                    dups += 1
+                    # Look up existing id by hash so vars/events can still link
+                    row = con.execute(
+                        "SELECT id FROM documents WHERE raw_hash=?", (d.raw_hash,)
+                    ).fetchone()
+                    doc_ids.append(row[0] if row else None)
+                else:
+                    docs += 1
+                    doc_ids.append(new_id)
 
-        for v in result.variables:
-            doc_id = doc_ids[v.source_doc_idx] if v.source_doc_idx is not None and v.source_doc_idx < len(doc_ids) else None
-            db.insert_variable(con, spec_id=v.spec_id, ts=_iso(v.ts),
-                               value=v.value, confidence=v.confidence,
-                               source_doc_id=doc_id)
-            vars_ += 1
+            for v in result.variables:
+                doc_id = doc_ids[v.source_doc_idx] if v.source_doc_idx is not None and v.source_doc_idx < len(doc_ids) else None
+                db.insert_variable(con, spec_id=v.spec_id, ts=_iso(v.ts),
+                                   value=v.value, confidence=v.confidence,
+                                   source_doc_id=doc_id)
+                vars_ += 1
 
-        for ev in result.raw_events:
-            doc_id = doc_ids[ev.source_doc_idx] if ev.source_doc_idx is not None and ev.source_doc_idx < len(doc_ids) else None
-            db.insert_raw_event(con, template_id=ev.template_id,
-                                ts=_iso(ev.ts), payload=ev.payload,
-                                source_doc_id=doc_id, severity=ev.severity)
-            events += 1
-    except Exception as e:
-        err = f"{type(e).__name__}: {e}"
-        log.exception("adapter %s failed", adapter.name)
+            for ev in result.raw_events:
+                doc_id = doc_ids[ev.source_doc_idx] if ev.source_doc_idx is not None and ev.source_doc_idx < len(doc_ids) else None
+                db.insert_raw_event(con, template_id=ev.template_id,
+                                    ts=_iso(ev.ts), payload=ev.payload,
+                                    source_doc_id=doc_id, severity=ev.severity)
+                events += 1
+        except Exception as e:
+            err = f"{type(e).__name__}: {e}"
+            log.exception("adapter %s failed", adapter.name)
+    finally:
+        ingest_logger.removeHandler(warn_capture)
+
+    if warn_capture.records:
+        warn_str = " | ".join(warn_capture.records[:10])
+        if len(warn_capture.records) > 10:
+            warn_str += f" | ...(+{len(warn_capture.records) - 10} more)"
+        err = f"{err} | warnings: {warn_str}" if err else f"warnings: {warn_str}"
 
     finished_at = _iso(datetime.now(timezone.utc))
     db.finish_ingestion_run(con, run_id, finished_at=finished_at,

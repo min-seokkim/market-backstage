@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 from . import Document, IngestResult, IngestedRawEvent, run_adapter
-from events_catalog import EVENT_CATALOG
+from catalog.events import EVENT_CATALOG
 
 load_dotenv()
 log = logging.getLogger(__name__)

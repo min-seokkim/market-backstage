@@ -7,34 +7,30 @@ plus an inbox and a set of connections. Two concrete subclasses:
   events, applies behavioral-econ math (Prospect theory utility, herding,
   limits-to-arbitrage haircut) to produce a market_action. Useful for testing
   the world loop without LLM calls.
-- `LLMBackedActor`: defined in `llm.py`.
+- `LLMBackedActor`: defined in `llm/actor.py`.
 
-Actor *instances* are built from `actor_catalog.yaml` entries via
-`Actor.from_catalog_entry()`. trait/interest values are NOT hardcoded — they
-are filled in by `calibration.py` reading recent crawled documents (Phase 1
-ingestion → Phase 3 calibration). This module only defines the
-state-carrying scaffold + the deterministic RuleBased fallback.
+Actor *instances* are built from `korea/catalogs/actors.yaml` entries via
+`Actor.from_catalog_entry()`. trait/interest values are NOT hardcoded —
+they are filled in by `llm.calibration` reading recent crawled documents.
+
+This module is domain-neutral; the catalog data lives in korea/.
 """
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from belief import BayesianState
-from event import Event, market_action
-from psyche import (
+from core.belief import BayesianState
+from core.event import Event, market_action
+from core.psyche import (
     AffectiveState,
     InterestStructure,
     PsychologicalTraits,
     to_snapshot,
 )
-import dynamics as D
-
-
-PERSONAS_DIR = Path(__file__).parent / "personas"  # legacy, may be empty
+from core import dynamics_general as D
 
 
 # -----------------------------------------------------------------------------
@@ -104,7 +100,7 @@ class ActionSchema:
 
 
 # -----------------------------------------------------------------------------
-# Base Actor + RuleBasedActor (logic identical to previous version)
+# Base Actor + RuleBasedActor
 # -----------------------------------------------------------------------------
 
 
@@ -187,12 +183,9 @@ class Actor:
             ).clamped()
 
     def _apply_signal(self, ev: Event) -> None:
-        """Default: no-op. Concrete actors set a signal_map and override.
-
-        The catalog-driven calibration may attach a signal-handler
-        descriptor to the actor; for now LLMBackedActor digests signals
-        via the inbox in the prompt.
-        """
+        """Default: no-op. LLMBackedActor digests signals via the inbox in
+        the prompt; rule-based actors that need explicit signal handling
+        override this method."""
         pass
 
     def _apply_qualitative(self, ev: Event) -> None:
@@ -218,18 +211,7 @@ class Actor:
                            initial_beliefs: dict[str, dict[str, float]] | None = None,
                            calibration: dict | None = None,
                            ) -> "Actor":
-        """Build an Actor instance from a YAML catalog entry.
-
-        `entry` schema (see actor_catalog.yaml):
-          id, name, category, role, mvp, activation, identity{keywords,notes},
-          sources[], schema{...}, decision_variables[], notes
-
-        `initial_beliefs` (optional): per-variable prior dict keyed by
-        spec_id. If absent, decision_variables get uniform priors.
-
-        `calibration`: if present, supplies traits / interests / affect /
-        belief priors. If absent, weak defaults are used.
-        """
+        """Build an Actor instance from a YAML catalog entry."""
         identity = entry.get("identity") or {}
         keywords = list(identity.get("keywords") or [])
 
@@ -264,8 +246,7 @@ class Actor:
 
         # belief priors from calibration override the uniform default
         for var, prior in (calibration.get("belief_priors") or {}).items():
-            if var in bs.vars or True:
-                bs.set_prior(var, dict(prior))
+            bs.set_prior(var, dict(prior))
 
         return cls(
             id=str(entry["id"]),
@@ -298,57 +279,6 @@ def _uniform_3() -> dict[str, float]:
     return {"low": 1 / 3, "mid": 1 / 3, "high": 1 / 3}
 
 
-# -----------------------------------------------------------------------------
-# YAML catalog loader
-# -----------------------------------------------------------------------------
-
-
-CATALOG_PATH = Path(__file__).parent / "actor_catalog.yaml"
-
-
-def load_catalog(path: Path | str = CATALOG_PATH) -> list[dict]:
-    """Load actor_catalog.yaml as a list of dicts."""
-    import yaml
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f) or []
-
-
-def build_actors(*,
-                 path: Path | str = CATALOG_PATH,
-                 calibrations: dict[str, dict] | None = None,
-                 actor_cls: type | None = None,
-                 mvp_only: bool = True,
-                 ) -> list["Actor"]:
-    """Instantiate Actors from the YAML catalog.
-
-    - `calibrations`: optional {actor_id: calibration_dict} map (typically
-      from db.latest_calibration). If absent, weak default state.
-    - `actor_cls`: defaults to RuleBasedActor; pass LLMBackedActor from llm.py
-      to enable LLM decisions.
-    - `mvp_only`: if True, skip entries with `mvp: false`.
-
-    Auto-fills `decision_variables` from `variables.py:for_actor()` when the
-    YAML has it null.
-    """
-    from variables import for_actor as variables_for_actor
-
-    actor_cls = actor_cls or RuleBasedActor
-    calibrations = calibrations or {}
-
-    out: list[Actor] = []
-    for entry in load_catalog(path):
-        if mvp_only and not entry.get("mvp", False):
-            continue
-        if entry.get("decision_variables") is None:
-            entry = dict(entry)
-            entry["decision_variables"] = [v.id for v in variables_for_actor(entry["id"])]
-        a = actor_cls.from_catalog_entry(
-            entry, calibration=calibrations.get(entry["id"]),
-        )
-        out.append(a)
-    return out
-
-
 class RuleBasedActor(Actor):
     """Deterministic baseline.
 
@@ -365,11 +295,7 @@ class RuleBasedActor(Actor):
     """
 
     def _primary_market_belief(self) -> tuple[float, float]:
-        """Return (P(up), P(down)) for the most market-relevant belief var.
-
-        Looks for a variable named like KOSPI/방향 with up/down labels,
-        else falls back to (0, 0) → neutral conviction.
-        """
+        """Return (P(up), P(down)) for the most market-relevant belief var."""
         candidates = [v for v in self.decision_variables
                       if "방향" in v or "KOSPI" in v]
         for var in candidates + list(self.belief.vars.keys()):
@@ -383,10 +309,7 @@ class RuleBasedActor(Actor):
         raw = p_up - p_down
 
         # Fallback when no explicit directional belief: derive conviction from
-        # affective state (greed - fear, scaled). This lets rule-based actors
-        # still respond to shocks via observe() heuristic affect updates even
-        # without LLM calibration producing up/down belief labels. Amplifier
-        # is large because affect deltas are usually 0.05~0.3 in magnitude.
+        # affective state (greed - fear, scaled).
         if abs(raw) < 0.05:
             raw = (self.affect.greed - self.affect.fear) * 2.5
 
@@ -426,8 +349,7 @@ class RuleBasedActor(Actor):
                 rationale=f"rule:conv={conv3:+.2f},aff(f={self.affect.fear:.2f},g={self.affect.greed:.2f})",
             ))
 
-        # Decay toward neutral baseline. Persistence high so emotional state
-        # smooths across ticks rather than whiplashing.
+        # Decay toward neutral baseline.
         next_affect = AffectiveState(
             fear=D.ar1_decay(self.affect.fear, 0.15, persistence=0.75),
             greed=D.ar1_decay(self.affect.greed, 0.15, persistence=0.75),
@@ -436,30 +358,3 @@ class RuleBasedActor(Actor):
             morale=D.ar1_decay(self.affect.morale, 0.5, persistence=0.75),
         ).clamped()
         return events, next_affect, {}
-
-
-if __name__ == "__main__":
-    # Smoke: build a minimal RuleBasedActor from a hand-crafted catalog entry.
-    entry = {
-        "id": "test_actor",
-        "name": "테스트 액터",
-        "category": "test",
-        "role": "test",
-        "schema": {"market_actions": True, "weight": 0.1},
-        "decision_variables": ["KOSPI_방향_3M"],
-        "identity": {"keywords": ["테스트"]},
-        "notes": "smoke-test only",
-    }
-    a = Actor.from_catalog_entry(
-        entry,
-        initial_beliefs={"KOSPI_방향_3M": {"up": 0.20, "flat": 0.30, "down": 0.50}},
-    )
-    a.__class__ = RuleBasedActor
-    print(f"Actor: {a.id}")
-    print(f"  category={a.category} role={a.role} activation={a.activation}")
-    print(f"  schema: {a.schema.describe()} weight={a.schema.weight}")
-    print(f"  belief: {a.belief.summary()}")
-    evs, aff_next, drift = a.decide(0)
-    print(f"  decisions: {len(evs)}")
-    for e in evs:
-        print(f"    -> {e}")

@@ -556,7 +556,7 @@
   decision_variables: null
 
 # ============================================================================
-# v0.2 M&A refinement actors
+# M&A refinement actors
 # ============================================================================
 
 - id: hmc_ma_committee
@@ -611,8 +611,8 @@
   identity:
     keywords: [Hyundai M&A, Hyundai Motor acquisition, technical due diligence]
     notes: |
-      v0.2 committee actor. Manufacturing M&A is modeled as weighted consensus
-      with CEO veto and dominant technical due-diligence weight.
+      Decision-committee actor. Manufacturing M&A is modeled as weighted
+      consensus with CEO veto and dominant technical due-diligence weight.
   sources:
     - adapter: dart
       params: {group: hyundai}
@@ -625,7 +625,7 @@
     disclosure: true
     weight: 0
   decision_variables: null
-  notes: v0.2 decision committee actor.
+  notes: Decision-committee actor.
 
 - id: fair_trade_commission
   name: Korea Fair Trade Commission Gateway
@@ -646,7 +646,7 @@
   identity:
     keywords: [KFTC, Fair Trade Commission, business combination review]
     notes: |
-      v0.2 critical gateway actor. Review delay is a deal-lifecycle risk
+      Critical gateway actor. Review delay is a deal-lifecycle risk
       amplifier, not a background regulatory footnote.
   sources:
     - adapter: govt_press
@@ -660,7 +660,7 @@
     disclosure: false
     weight: 0
   decision_variables: null
-  notes: v0.2 FTC gateway actor.
+  notes: FTC gateway actor.
 
 - id: private_equity_fund_template
   name: Korean Private Equity Fund Template
@@ -676,7 +676,7 @@
     post_exit_acquirer_relationship: 0.40
   identity:
     keywords: [MBK Partners, IMM PE, Hahn and Company, STIC Investments, VIG Partners]
-    notes: v0.2 private-equity template for Korean M&A buyer/seller modeling.
+    notes: Private-equity template for Korean M&A buyer/seller modeling.
   sources:
     - adapter: news
       params: {keywords: [private equity Korea M&A, MBK Partners, IMM PE]}
@@ -723,10 +723,11 @@
   identity:
     keywords: [전문경영인, 사장, 부사장, 대표이사, 사임]
     notes: |
-      v0.2 §1.4 template. Korean professional executives optimize for
-      visible results within their fixed tenure (typically 5-7 yrs) more
-      than financial compensation. Use for chaebol_cfo_* / division CEO
-      decision modeling when no owner-family seat overrides them.
+      Professional-executive template. Korean professional executives
+      optimize for visible results within their fixed tenure (typically
+      5-7 yrs) more than financial compensation. Use for chaebol_cfo_*
+      / division CEO decision modeling when no owner-family seat
+      overrides them.
   sources:
     - adapter: dart
       params: {filing_types: [임원·주요주주, 사업보고서]}
@@ -741,7 +742,7 @@
   decision_variables: null
 
 # ============================================================================
-# v0.4 reform-regime actors
+# Reform-regime actors (2025-2026 governance reform)
 # ============================================================================
 
 - id: activist_fund_align_partners
@@ -770,7 +771,7 @@
   identity:
     keywords: [Align Partners, 얼라인파트너스, 두산밥캣 행동주의, SK스퀘어 캠페인]
     notes: |
-      v0.4 §2.1 활동주의 actor. 충실의무 확대(2025-07-22) 이후 소수주주
+      활동주의 actor. 충실의무 확대(2025-07-22) 이후 소수주주
       소송 가능성 + 자사주 강제 소각 추진 reform과 결합되어 영향력 확대.
   sources:
     - adapter: dart
@@ -846,7 +847,7 @@
       - no_discovery_system
       - burden_of_proof_on_plaintiff
       - limited_class_action_scope
-    effectiveness_trend: increasing  # v0.4 §2.3
+    effectiveness_trend: increasing  # post-2025-07-22 fiduciary expansion
   triggers:
     - merger_ratio_unfavorable_to_minority
     - treasury_share_use_for_control_purposes
@@ -855,7 +856,7 @@
   identity:
     keywords: [소수주주 소송, 이사 충실의무 위반, 합병비율 소송]
     notes: |
-      v0.4 §2.3 신규 actor. 2025-07-22 충실의무 확대 이후 등장 가능한
+      소수주주 소송 actor. 2025-07-22 충실의무 확대 이후 등장 가능한
       "이사 충실의무 위반" 직접 소송 player. 시간이 흐르며 enforcement
       effectiveness 상승.
   sources:
@@ -889,9 +890,9 @@
   identity:
     keywords: [KOSPI 5000 특별위원회, 자사주 강제 소각, 의무공개매수]
     notes: |
-      v0.4 §2.4 reform legislation pipeline의 leading indicator. 위원회
-      발언·언론 노출이 입법 timing을 미리 알려주는 신호. 정책 통과
-      timing prior의 핵심 input.
+      Reform legislation pipeline의 leading indicator. 위원회 발언·언론
+      노출이 입법 timing을 미리 알려주는 신호. 정책 통과 timing prior의
+      핵심 input.
   sources:
     - adapter: assembly
       params: {keywords: [KOSPI 5000 특별위원회, 자사주 강제 소각, 의무공개매수]}

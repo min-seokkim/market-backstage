@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Iterable
 
-from event import Event
+from core.event import Event
 
 
 def aggregate(events: Iterable[Event], actor_weights: dict[str, float]

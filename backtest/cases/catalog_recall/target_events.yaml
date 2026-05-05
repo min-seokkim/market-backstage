@@ -1,0 +1,157 @@
+# Catalog Recall target events
+#
+# Question: starting from a seed catalog that *excludes* the 2025-2026 reform
+# regime, can the agenda extractor catch these 12 events purely from broad
+# document ingest? If recall < 0.75 or latency > 7d, refactor the extractor.
+#
+# Each entry:
+#   id              : stable identifier (used in run_log keys)
+#   label           : Korean display
+#   emergence_date  : when this event first becomes detectable in real docs
+#   expected_window_days : how soon after emergence we should catch it
+#   detection_hint  : keywords / phrases that would have to appear in a doc
+#                     for the LLM to plausibly identify the event. Used only
+#                     in the metric harness to verify that the document corpus
+#                     *had* the signal — not in the extractor itself.
+#   acceptance      : for diagnostics only (extractor must propose new
+#                     EventTemplate matching these affects_actors / category)
+
+events:
+  - id: commercial_act_first_pass_2025_07_03
+    label: "1차 상법 개정 통과 (이사 충실의무 확대)"
+    emergence_date: 2025-07-03
+    expected_window_days: 3
+    detection_hint:
+      - "충실의무 확대"
+      - "상법 개정안 본회의"
+    acceptance:
+      category: legal
+      affects_actors_must_include:
+        - chaebol_chair_samsung
+        - opposition_party_leader
+        - minority_shareholder_plaintiff_template
+
+  - id: treasury_share_mandatory_cancellation_proposal_2025_07_09
+    label: "자사주 의무 소각 입법 추진 발표"
+    emergence_date: 2025-07-09
+    expected_window_days: 3
+    detection_hint:
+      - "자사주 강제 소각"
+      - "자사주 의무 소각"
+    acceptance:
+      category: political
+      affects_actors_must_include:
+        - kospi_5000_special_committee
+        - chaebol_chair_samsung
+
+  - id: hmm_treasury_retire_2025_08
+    label: "HMM 2.2조 자사주 소각 발표"
+    emergence_date: 2025-08-15
+    expected_window_days: 5
+    detection_hint:
+      - "HMM"
+      - "자사주 소각"
+    acceptance:
+      category: governance
+
+  - id: commercial_act_second_pass_2025_08_25
+    label: "2차 상법 개정 통과 (집중투표·감사위원·3% rule)"
+    emergence_date: 2025-08-25
+    expected_window_days: 3
+    detection_hint:
+      - "3% rule"
+      - "감사위원 분리 선출"
+      - "집중투표"
+    acceptance:
+      category: legal
+
+  - id: kospi_5000_special_committee_active_2025_08
+    label: "KOSPI 5000 특별위원회 활동 본격화"
+    emergence_date: 2025-08-01
+    expected_window_days: 14
+    detection_hint:
+      - "KOSPI 5000 특별위원회"
+      - "김남근 의원"
+      - "오기형 의원"
+    acceptance:
+      category: political
+      proposes_new_actors:
+        - kim_nam_geun
+        - oh_ki_hyung
+
+  - id: yellow_envelope_act_passed_2025_08_26
+    label: "노란봉투법 통과 (노조 권리 확대)"
+    emergence_date: 2025-08-26
+    expected_window_days: 3
+    detection_hint:
+      - "노란봉투법"
+      - "노조법 개정"
+    acceptance:
+      category: legal
+
+  - id: corporate_tax_increase_2025_09
+    label: "법인세 24→25% 인상"
+    emergence_date: 2025-09-01
+    expected_window_days: 5
+    detection_hint:
+      - "법인세 인상"
+      - "법인세 25"
+    acceptance:
+      category: political
+
+  - id: lee_jaemyung_nyse_visit_2025_09_25
+    label: "이재명 대통령 NYSE 종 타종"
+    emergence_date: 2025-09-25
+    expected_window_days: 3
+    detection_hint:
+      - "NYSE"
+      - "뉴욕증권거래소"
+    acceptance:
+      category: external
+
+  - id: mandatory_tender_offer_govt_party_agreement_2025_12_04
+    label: "의무공개매수 정부-여당 합의"
+    emergence_date: 2025-12-04
+    expected_window_days: 3
+    detection_hint:
+      - "의무공개매수"
+      - "지배권 변동 공개매수"
+    acceptance:
+      category: political
+
+  - id: align_partners_doosan_bobcat_campaign_2025_q4
+    label: "Align Partners 두산밥캣 캠페인"
+    emergence_date: 2025-10-01
+    expected_window_days: 7
+    detection_hint:
+      - "Align Partners"
+      - "얼라인파트너스"
+      - "두산밥캣"
+    acceptance:
+      category: governance
+
+  - id: oasis_korea_team_expansion_2025_q4
+    label: "Oasis Management 한국팀 확대"
+    emergence_date: 2025-10-15
+    expected_window_days: 14
+    detection_hint:
+      - "Oasis Management Korea"
+      - "오아시스 한국"
+    acceptance:
+      category: governance
+
+  - id: capital_gains_tax_reform_2025_09
+    label: "자본이득세 reform 발표"
+    emergence_date: 2025-09-15
+    expected_window_days: 5
+    detection_hint:
+      - "자본이득세"
+      - "주식양도세"
+    acceptance:
+      category: political
+
+# Acceptance thresholds for B.2.1 (per supplement)
+metrics:
+  recall_min: 0.75
+  avg_latency_max_days: 7
+  precision_min: 0.60

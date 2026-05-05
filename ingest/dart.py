@@ -26,7 +26,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 from . import Adapter, Document, IngestResult, IngestedRawEvent, run_adapter
-from events_catalog import EVENT_CATALOG
+from catalog.events import EVENT_CATALOG
 
 load_dotenv()
 log = logging.getLogger(__name__)
@@ -145,7 +145,6 @@ def main():
     else:
         since = datetime.now(timezone.utc) - timedelta(days=7)
 
-    con = db.init() if not args.db else db.init(args.db)  # type: ignore  # noqa
     import db as _db
     con = _db.init()
     res = run_adapter(con, DartAdapter(), since)

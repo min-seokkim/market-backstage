@@ -325,7 +325,7 @@ EVENT_CATALOG: tuple[EventTemplate, ...] = (
     ),
 
     # ------------------------------------------------------------------
-    # v0.4 Korean governance reform legislation events
+    # Korean governance reform legislation events
     # ------------------------------------------------------------------
     EventTemplate(
         id="상법개정_충실의무_확대_시행",
@@ -342,7 +342,7 @@ EVENT_CATALOG: tuple[EventTemplate, ...] = (
                         "foreign_active_em_macro"),
         variables_to_update=("reform_legislation_stage",
                              "fiduciary_duty_enforcement_strength"),
-        notes="v0.4 §0.1: 2025-07-22 effective date. Director regime change.",
+        notes="2025-07-22 effective date. Director regime change.",
     ),
     EventTemplate(
         id="상법개정_3pct_rule_시행",
@@ -355,7 +355,7 @@ EVENT_CATALOG: tuple[EventTemplate, ...] = (
                         "chaebol_chair_lg", "chaebol_chair_lotte",
                         "activist_fund_align_partners", "nps_cio"),
         variables_to_update=("reform_legislation_stage",),
-        notes="v0.4 §0.1: 2026-07 expected. Limits controlling-shareholder voting.",
+        notes="2026-07 expected. Limits controlling-shareholder voting.",
     ),
     EventTemplate(
         id="자사주_강제소각_입법_추진",
@@ -371,7 +371,7 @@ EVENT_CATALOG: tuple[EventTemplate, ...] = (
                         "activist_fund_align_partners", "foreign_active_em_macro"),
         variables_to_update=("reform_legislation_stage",
                              "treasury_cancellation_count_ytd"),
-        notes="v0.4 §1.2: pending; takeover-defense weakening if passed.",
+        notes="Pending; takeover-defense weakening if passed.",
     ),
     EventTemplate(
         id="의무공개매수_입법_추진",
@@ -386,7 +386,7 @@ EVENT_CATALOG: tuple[EventTemplate, ...] = (
                         "foreign_active_event_driven", "nps_cio"),
         variables_to_update=("mandatory_tender_offer_rule_status",
                              "reform_legislation_stage"),
-        notes="v0.4 §3.3: contracts M&A market capacity if in force.",
+        notes="Contracts M&A market capacity if in force.",
     ),
     EventTemplate(
         id="자사주_프리엠티브_소각_웨이브",
@@ -399,7 +399,7 @@ EVENT_CATALOG: tuple[EventTemplate, ...] = (
                         "activist_fund_align_partners"),
         variables_to_update=("treasury_cancellation_count_ytd",
                              "value_up_cycle_phase"),
-        notes="v0.4 §0.2: 206건 in 2025-01..08. Reflexivity cycle signal.",
+        notes="206 cases in 2025-01..08. Reflexivity cycle signal.",
     ),
     EventTemplate(
         id="활동주의펀드_캠페인_시작",
@@ -430,11 +430,11 @@ EVENT_CATALOG: tuple[EventTemplate, ...] = (
                         "chaebol_chair_lg", "chaebol_chair_lotte",
                         "activist_fund_align_partners"),
         variables_to_update=("fiduciary_duty_enforcement_strength",),
-        notes="v0.4 §2.3: previously near-impossible standing — now active.",
+        notes="Previously near-impossible standing — now active under expanded fiduciary duty.",
     ),
 
     # ------------------------------------------------------------------
-    # v0.3 family / political-connection events
+    # Family / political-connection events
     # ------------------------------------------------------------------
     EventTemplate(
         id="재벌_가족_결혼_발표",
@@ -447,7 +447,7 @@ EVENT_CATALOG: tuple[EventTemplate, ...] = (
                         "chaebol_chair_samsung", "chaebol_chair_lotte",
                         "foreign_active_em_macro"),
         variables_to_update=("family_wedding_event_relationship",),
-        notes="v0.3 §6.4: Bunkanwanicha et al. CAR effect (chaebol-nouveaux strongest).",
+        notes="Bunkanwanicha et al. CAR effect (chaebol-nouveaux strongest).",
     ),
     EventTemplate(
         id="대선_후보_단일화_또는_사퇴",
@@ -459,7 +459,7 @@ EVENT_CATALOG: tuple[EventTemplate, ...] = (
         affects_actors=("president", "ruling_party_leader", "opposition_party_leader",
                         "foreign_active_em_macro", "retail"),
         variables_to_update=("political_theme_lifecycle_stage",),
-        notes="v0.3 §7: triggers themed-stock lifecycle stage transition.",
+        notes="Triggers political-themed-stock lifecycle stage transition.",
     ),
 )
 
@@ -473,6 +473,33 @@ def by_category(cat: str) -> list[EventTemplate]:
 
 def for_actor(actor_id: str) -> list[EventTemplate]:
     return [e for e in EVENT_CATALOG if actor_id in e.affects_actors]
+
+
+# ---- Dynamic catalog read ------------------------------------------------
+
+def all_active_events(con) -> list[EventTemplate]:
+    """Read currently-active event templates from the dynamic registry.
+
+    Falls back to the static EVENT_CATALOG if the *_dyn table is empty
+    (e.g. first run before db.seed_dynamic_catalog_from_static was called).
+    Use this in code paths that should pick up LLM-discovered new templates.
+    """
+    import persistence as _db
+    rows = _db.fetch_active_event_templates(con)
+    if not rows:
+        return list(EVENT_CATALOG)
+    return [EventTemplate(
+        id=r["id"], label=r["label"], category=r["category"],
+        detection=r["detection"], source=r["source"],
+        typical_severity=r["typical_severity"],
+        affects_actors=r["affects_actors"],
+        variables_to_update=r["variables_to_update"],
+        notes=r["notes"],
+    ) for r in rows]
+
+
+def active_events_by_id(con) -> dict[str, EventTemplate]:
+    return {e.id: e for e in all_active_events(con)}
 
 
 if __name__ == "__main__":

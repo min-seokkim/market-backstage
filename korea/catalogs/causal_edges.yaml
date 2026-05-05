@@ -1,0 +1,85 @@
+# Cross-actor belief propagation edges — catalog F.
+#
+# Each edge: when source_actor's belief about source_var changes, pull
+# target_actor's belief about target_var toward `blend_targets[mode]` by
+# `strength`. See core/causal.py for semantics.
+#
+# This file is the *seed* — runtime reads from causal_edges_dyn.
+
+- source_actor: bok_governor
+  source_var: BOK_금리경로_6M
+  target_actor: foreign_active_em_macro
+  target_var: 글로벌_risk_on_3M
+  strength: 0.25
+  notes: "catalog F.5. BOK 인하 → EM 자금 환경 우호 (단순화)."
+  blend_targets:
+    인상: { on: 0.20, neutral: 0.40, off: 0.40 }
+    동결: { on: 0.35, neutral: 0.40, off: 0.25 }
+    인하: { on: 0.50, neutral: 0.35, off: 0.15 }
+
+- source_actor: president
+  source_var: 청와대_사면_이벤트
+  target_actor: chaebol_chair_samsung
+  target_var: samsung_지주사_전환_진척도
+  strength: 0.15
+  notes: "사면 재계포함 → 가족 지배 안정 → 지배구조 정비 추진력 ↑"
+  blend_targets:
+    재계포함:   { 미진행: 0.10, 검토: 0.25, 추진중: 0.45, 완료: 0.20 }
+    정치인포함: { 미진행: 0.30, 검토: 0.40, 추진중: 0.25, 완료: 0.05 }
+    일반:       { 미진행: 0.40, 검토: 0.40, 추진중: 0.15, 완료: 0.05 }
+
+- source_actor: foreign_active_em_macro
+  source_var: 글로벌_risk_on_3M
+  target_actor: fsc_chair
+  target_var: 공매도_정책_상태
+  strength: 0.20
+  notes: "외국인 risk-off → KOSPI 하락 압박 → 정치권 공매도 금지 압박 → fsc_chair 정책 prior 변동"
+  blend_targets:
+    on:      { 전면금지: 0.15, 부분허용: 0.25, 정상: 0.60 }
+    neutral: { 전면금지: 0.20, 부분허용: 0.40, 정상: 0.40 }
+    off:     { 전면금지: 0.40, 부분허용: 0.40, 정상: 0.20 }
+
+- source_actor: foreign_active_em_macro
+  source_var: 글로벌_risk_on_3M
+  target_actor: bok_governor
+  target_var: BOK_금리경로_6M
+  strength: 0.15
+  notes: "외국인 risk-off → KRW 약세 → BOK 인상 압박. 약한 결합 (BOK 독립성)."
+  blend_targets:
+    on:      { 인상: 0.15, 동결: 0.50, 인하: 0.35 }
+    neutral: { 인상: 0.25, 동결: 0.55, 인하: 0.20 }
+    off:     { 인상: 0.40, 동결: 0.45, 인하: 0.15 }
+
+- source_actor: samsung_family_dispute
+  source_var: 삼성_가족분쟁_재발_1Y
+  target_actor: chaebol_chair_samsung
+  target_var: samsung_총수_사법리스크
+  strength: 0.15
+  notes: "가족 분쟁 잠복 → 사법 리스크와 약하게 연결."
+  blend_targets:
+    가능: { 수사중: 0.15, 재판중: 0.20, 선고완료: 0.15, 리스크없음: 0.50 }
+    잠복: { 수사중: 0.10, 재판중: 0.10, 선고완료: 0.10, 리스크없음: 0.70 }
+    안정: { 수사중: 0.05, 재판중: 0.05, 선고완료: 0.05, 리스크없음: 0.85 }
+
+- source_actor: chaebol_chair_samsung
+  source_var: samsung_지주사_전환_진척도
+  target_actor: president
+  target_var: 지지율_3M
+  strength: 0.10
+  notes: "재벌 지배구조 진전 → 시장 호평 → 경제 성과 → 지지율. 약한 효과."
+  blend_targets:
+    추진중: { 상승: 0.30, 정체: 0.50, 하락: 0.20 }
+    완료:   { 상승: 0.40, 정체: 0.45, 하락: 0.15 }
+    검토:   { 상승: 0.25, 정체: 0.50, 하락: 0.25 }
+    미진행: { 상승: 0.20, 정체: 0.45, 하락: 0.35 }
+
+- source_actor: foreign_active_em_macro
+  source_var: 글로벌_risk_on_3M
+  target_actor: retail
+  target_var: 신용잔고_방향_1M
+  strength: 0.30
+  notes: "외인 risk-off → KOSPI 하락 → retail 마진콜 → 신용잔고 감소 chain."
+  blend_targets:
+    on:      { 증가: 0.45, 정체: 0.40, 감소: 0.15 }
+    neutral: { 증가: 0.35, 정체: 0.45, 감소: 0.20 }
+    off:     { 증가: 0.15, 정체: 0.35, 감소: 0.50 }

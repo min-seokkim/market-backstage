@@ -15,9 +15,10 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-import db
-from event import Event, signal as mk_signal
-from variables import VARIABLES_BY_ID
+import persistence as db
+from core.event import Event, signal as mk_signal
+from catalog.variables import active_variables_by_id
+from catalog.events import active_events_by_id
 
 log = logging.getLogger(__name__)
 
@@ -48,10 +49,11 @@ def push_recent_variable_updates(world, *,
                     ).isoformat()
 
     rows = db.fetch_variables_since(world.con, since_ts)
+    vars_by_id = active_variables_by_id(world.con)
     n = 0
     tick = world.clock
     for spec_id, ts, value, conf in rows:
-        spec = VARIABLES_BY_ID.get(spec_id)
+        spec = vars_by_id.get(spec_id)
         if not spec:
             continue
         stat = KIND_TO_STAT.get(spec.kind, "real")
@@ -81,7 +83,6 @@ def push_raw_events_as_shocks(world, *,
     """Inject raw_events (catalog C trigger detections) as qualitative shock
     events into the affected actors' inboxes. Severity from EventTemplate.
     """
-    from events_catalog import EVENTS_BY_ID
     if since_ts is None:
         since_ts = (datetime.now(timezone.utc) - timedelta(days=default_window_days)
                     ).isoformat()
@@ -91,10 +92,11 @@ def push_raw_events_as_shocks(world, *,
         "WHERE ts >= ? ORDER BY ts ASC",
         (since_ts,),
     ).fetchall()
+    events_by_id = active_events_by_id(world.con)
     n = 0
     tick = world.clock
     for _id, template_id, ts, payload_json, severity in rows:
-        tmpl = EVENTS_BY_ID.get(template_id)
+        tmpl = events_by_id.get(template_id)
         if not tmpl:
             continue
         try:

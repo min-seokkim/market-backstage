@@ -1,67 +1,21 @@
-"""Anthropic SDK wrapper + LLMBackedActor.
+"""LLMBackedActor + actor decision prompt construction.
 
-Why this split: keeping the Anthropic dependency isolated to one module
-means the rest of the codebase remains importable / testable in
-LLM-free environments. RuleBasedActor in `actor.py` requires no SDK.
-
-Design choices:
-
-- **Prompt caching**: the persona + traits + schema portion is static
-  per actor across ticks, so we mark it `cache_control={"type":"ephemeral"}`
-  to take advantage of Anthropic prompt caching. With 8 actors × 2 ticks
-  the cost reduction is meaningful even at MVP scale; it scales hard once
-  we run hundreds of ticks.
-
-- **Strict JSON output**: we use a JSON schema in the user prompt. The
-  response is parsed with `json.loads`; if parsing fails the raw text is
-  preserved in DB and the actor returns empty decisions for the tick
-  (defensive — a failed parse should not crash the loop).
-
-- **Model**: read from `ANTHROPIC_MODEL` env var (default
-  `claude-opus-4-7`) so it's trivially swappable.
+The persona + traits + schema portion is static per actor across ticks,
+so it's marked for prompt caching. The user prompt carries volatile state
+(beliefs/affect/inbox).
 """
 
 from __future__ import annotations
 
 import json
-import os
-import re
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
 
-from dotenv import load_dotenv
+from core.actor import Actor
+from core.event import Event
+from core.psyche import AffectiveState
 
-from actor import Actor, ActionSchema
-from belief import BayesianState
-from event import Event, market_action
-from psyche import AffectiveState, InterestStructure, PsychologicalTraits
-
-load_dotenv()
-
-
-# Lazy-imported anthropic so module import works without the SDK installed
-# until an LLMBackedActor actually decides.
-def _client():
-    try:
-        from anthropic import Anthropic
-    except ImportError as e:  # pragma: no cover
-        raise RuntimeError(
-            "anthropic SDK not installed. Run `pip install anthropic`."
-        ) from e
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY is not set in environment / .env")
-    return Anthropic(api_key=api_key)
-
-
-MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-7")
-MAX_TOKENS = int(os.environ.get("ANTHROPIC_MAX_TOKENS", "1500"))
-
-
-# -----------------------------------------------------------------------------
-# Prompt construction
-# -----------------------------------------------------------------------------
+from .client import call as llm_call, parse_response
 
 
 SYSTEM_FRAME = """\
@@ -152,70 +106,6 @@ def build_user_prompt(actor: Actor, tick: int, recent_events: list[Event]) -> st
 
 
 # -----------------------------------------------------------------------------
-# JSON parsing (lenient)
-# -----------------------------------------------------------------------------
-
-
-_JSON_BLOCK_RE = re.compile(r"\{[\s\S]*\}", re.MULTILINE)
-
-
-def parse_response(raw: str) -> dict | None:
-    """Extract the first balanced JSON object. Return None if unparseable."""
-    if not raw:
-        return None
-    raw = raw.strip()
-    # try direct first
-    try:
-        return json.loads(raw)
-    except Exception:
-        pass
-    # fall back: find first {...} block
-    m = _JSON_BLOCK_RE.search(raw)
-    if not m:
-        return None
-    try:
-        return json.loads(m.group(0))
-    except Exception:
-        return None
-
-
-# -----------------------------------------------------------------------------
-# Public call() — used by calibration.py and any module that needs the LLM
-# -----------------------------------------------------------------------------
-
-
-def call(system: str, user: str, *,
-         model: str | None = None,
-         max_tokens: int | None = None,
-         cache_system: bool = True) -> str:
-    """One-shot Claude call. Returns raw text response.
-
-    `cache_system`: if True, applies cache_control to the system prompt
-    (Anthropic prompt caching). Use when the same system prompt will be
-    reused (e.g., per-actor calibration across many runs, LLMBackedActor
-    persona system prompts).
-    """
-    sys_blocks: list[dict] = [{"type": "text", "text": system}]
-    if cache_system:
-        sys_blocks[0]["cache_control"] = {"type": "ephemeral"}
-    resp = _client().messages.create(
-        model=model or MODEL,
-        max_tokens=max_tokens or MAX_TOKENS,
-        system=sys_blocks,
-        messages=[{"role": "user", "content": user}],
-    )
-    return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
-
-
-def call_json(system: str, user: str, **kw) -> dict | None:
-    """Like `call`, but parses JSON. Returns None on parse failure (raw is
-    swallowed; pass `cache_system=False` if you need to reuse the same
-    system without cache for some reason)."""
-    raw = call(system, user, **kw)
-    return parse_response(raw)
-
-
-# -----------------------------------------------------------------------------
 # LLMBackedActor
 # -----------------------------------------------------------------------------
 
@@ -246,16 +136,8 @@ class LLMBackedActor(Actor):
         user = build_user_prompt(self, tick, self.inbox)
 
         try:
-            resp = _client().messages.create(
-                model=MODEL,
-                max_tokens=MAX_TOKENS,
-                system=[
-                    {"type": "text", "text": system,
-                     "cache_control": {"type": "ephemeral"}},
-                ],
-                messages=[{"role": "user", "content": user}],
-            )
-            raw = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+            response = llm_call(system, user, cache_system=True)
+            raw = response.text
         except Exception as e:
             raw = json.dumps({"reasoning": f"LLM error: {e}", "decisions": [],
                               "affect_next": asdict(self.affect),
@@ -292,8 +174,7 @@ class LLMBackedActor(Actor):
                                     payload={"text": str(payload.get("text", ""))[:600]}))
             # else: silently drop disallowed kinds
 
-        # next affect (lerped toward target via Actor's blend; we apply blend
-        # here so RuleBased and LLM-backed both end with smoothed transitions)
+        # next affect (lerped toward target via Actor's blend)
         a = parsed.get("affect_next") or {}
         try:
             target = AffectiveState(
@@ -315,25 +196,3 @@ class LLMBackedActor(Actor):
         self._last_parsed = parsed
 
         return events, next_affect, drift
-
-
-def attach_llm_factories():
-    """Convenience: build the 8 concrete actors as LLMBackedActor instead of
-    RuleBasedActor. The factories already accept `actor_cls` so this is a
-    one-line override.
-    """
-    import actor as _a
-    return {aid: f(actor_cls=LLMBackedActor) for aid, f in _a.ALL_FACTORIES.items()}
-
-
-if __name__ == "__main__":
-    # No live API call here — just confirm prompt construction works.
-    actors = attach_llm_factories()
-    a = actors["retail"]
-    persona = a._load_persona() if a.persona_path else "(no persona)"
-    sys = build_system_prompt(a, persona)
-    usr = build_user_prompt(a, 0, [])
-    print("SYSTEM ---", len(sys), "chars")
-    print(sys[:400], "...")
-    print("\nUSER ---", len(usr), "chars")
-    print(usr[:400], "...")
