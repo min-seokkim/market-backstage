@@ -106,12 +106,26 @@ class IngestedEdge:
 
 
 @dataclass
+class IngestedAlias:
+    # alias→canonical mapping for person_aliases (PR-Z2). Used by PR4-NEC
+    # to bulk-insert Tier A (hanjaName + birthday) cross-election identity
+    # resolutions; also available to PR4-PERSON for cross-source resolves.
+    # confidence ∈ [0.0, 1.0] enforced by db.upsert_alias.
+    alias_actor_id: str
+    canonical_actor_id: str
+    confidence: float | None = None
+    evidence_source: str | None = None
+    metadata: dict = field(default_factory=dict)
+
+
+@dataclass
 class IngestResult:
     documents: list[Document] = field(default_factory=list)
     variables: list[IngestedVariable] = field(default_factory=list)
     raw_events: list[IngestedRawEvent] = field(default_factory=list)
     actors: list[IngestedActor] = field(default_factory=list)
     edges: list[IngestedEdge] = field(default_factory=list)
+    aliases: list[IngestedAlias] = field(default_factory=list)
 
 
 class Adapter(Protocol):
@@ -153,7 +167,7 @@ def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
              adapter.name, since.date().isoformat())
     run_id = db.begin_ingestion_run(con, adapter.name, started_at)
     docs = vars_ = events = dups = 0
-    actors_n = edges_n = 0
+    actors_n = edges_n = aliases_n = 0
     err: str | None = None
 
     warn_capture = _AdapterWarningCapture()
@@ -225,6 +239,21 @@ def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
                     metadata=edge.metadata or None,
                 )
                 edges_n += 1
+
+            # PR4-NEC: person_aliases bulk ingest. PR-Z2 added the
+            # (alias, canonical) schema; this loop is the first
+            # adapter-driven population. Adapters that don't populate
+            # aliases keep result.aliases empty.
+            for al in result.aliases:
+                db.upsert_alias(
+                    con,
+                    alias_actor_id=al.alias_actor_id,
+                    canonical_actor_id=al.canonical_actor_id,
+                    confidence=al.confidence,
+                    evidence_source=al.evidence_source,
+                    metadata=al.metadata or None,
+                )
+                aliases_n += 1
         except Exception as e:
             err = f"{type(e).__name__}: {e}"
             log.exception("adapter %s failed", adapter.name)
@@ -244,10 +273,11 @@ def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
                             event_count=events, error=err)
     con.commit()
     log.info("ingest %s: done — docs=%d, vars=%d, events=%d, "
-             "actors=%d, edges=%d, dups=%d, elapsed=%ds%s",
+             "actors=%d, edges=%d, aliases=%d, dups=%d, elapsed=%ds%s",
              adapter.name, docs, vars_, events,
-             actors_n, edges_n, dups, elapsed,
+             actors_n, edges_n, aliases_n, dups, elapsed,
              f", error={err[:100]}" if err else "")
     return {"docs": docs, "vars": vars_, "events": events,
-            "actors": actors_n, "edges": edges_n, "dups": dups,
+            "actors": actors_n, "edges": edges_n,
+            "aliases": aliases_n, "dups": dups,
             "error": err}

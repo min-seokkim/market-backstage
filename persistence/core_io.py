@@ -21,6 +21,12 @@ def connect(path: Path | str = DB_PATH) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(str(path))
     con.execute("PRAGMA foreign_keys = ON")
+    # Wait up to 30s on lock contention before raising — OneDrive/AV
+    # holds transient handles on the .db file when it sits inside a
+    # synced folder, and SQLite's default (immediate fail) trips smoke
+    # runs intermittently on Windows. 30s is generous; legitimate
+    # contention inside our own process never approaches this.
+    con.execute("PRAGMA busy_timeout = 30000")
     return con
 
 

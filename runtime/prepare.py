@@ -81,10 +81,11 @@ def prepare(con: sqlite3.Connection,
         from ingest.govt_press import GovtPressAdapter
         from ingest.assembly import AssemblyAdapter
         from ingest.ftc import FtcAdapter
+        from ingest.nec import NecAdapter
         for adapter in (DartAdapter(), NewsAdapter(max_per_keyword=3, con=con),
                         MacroAdapter(), BokEcosAdapter(),
                         GovtPressAdapter(), AssemblyAdapter(con=con),
-                        FtcAdapter(con=con)):
+                        FtcAdapter(con=con), NecAdapter(con=con)):
             res = run_adapter(con, adapter, since)
             log.info("ingest %s: %s", adapter.name, res)
 
