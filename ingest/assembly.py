@@ -115,7 +115,11 @@ class AssemblyAdapter:
     # ---- BPMBILLSUMMARY -------------------------------------------------
 
     def _fetch_bill_summary(self, bill_no: str, api_key: str) -> str:
-        """Per-bill SUMMARY fetch. Returns '' on any failure (logged)."""
+        """Per-bill SUMMARY fetch. Returns '' on any failure (logged).
+        On non-2xx status surfaces the response status + body[:200] so a
+        stuck case (rate-limit, key revocation, schema change) is
+        immediately visible without DB inspection.
+        """
         try:
             import requests
         except ImportError:
@@ -129,11 +133,25 @@ class AssemblyAdapter:
         }
         try:
             r = requests.get(BPMBILLSUMMARY_URL, params=params, timeout=30)
-            r.raise_for_status()
+        except requests.exceptions.Timeout:
+            log.warning("assembly BPMBILLSUMMARY timeout bill_no=%s "
+                        "(timeout=30s)", bill_no)
+            return ""
+        except Exception as e:
+            log.warning("assembly BPMBILLSUMMARY transport error "
+                        "bill_no=%s err=%s", bill_no, e)
+            return ""
+        if r.status_code >= 400:
+            log.warning("assembly BPMBILLSUMMARY status=%d bill_no=%s "
+                        "body[:200]=%s",
+                        r.status_code, bill_no, r.text[:200])
+            return ""
+        try:
             data = r.json()
         except Exception as e:
-            log.warning("assembly BPMBILLSUMMARY failed bill_no=%s err=%s",
-                        bill_no, e)
+            log.warning("assembly BPMBILLSUMMARY json parse failed "
+                        "bill_no=%s err=%s body[:200]=%s",
+                        bill_no, e, r.text[:200])
             return ""
         envelope = data.get("BPMBILLSUMMARY") or []
         rows: list[dict] = []
@@ -165,8 +183,14 @@ class AssemblyAdapter:
             return []
 
         cursor_seen = self._load_summary_cursor()
-        log.info("assembly: cursor has %d bills with SUMMARY already",
-                 len(cursor_seen))
+        t_start = time.monotonic()
+        log.info(
+            "assembly: starting fetch — max_pages=%d, page_size=%d, "
+            "daily_budget=%d, cursor has %d bills with SUMMARY (skip), "
+            "since=%s",
+            self.max_pages, self.page_size, self.daily_call_budget,
+            len(cursor_seen), since.date().isoformat(),
+        )
 
         out: list[Document] = []
         skipped_cursor = 0
@@ -177,6 +201,8 @@ class AssemblyAdapter:
                 log.warning("assembly: budget %d reached at page %d — break",
                             self.daily_call_budget, page)
                 break
+            log.info("assembly: page %d/%d — requesting metadata",
+                     page, self.max_pages)
             params = {
                 "Key": api_key,
                 "Type": "json",
@@ -201,7 +227,16 @@ class AssemblyAdapter:
                     rows = chunk["row"] or []
                     break
             if not rows:
+                log.info("assembly: page %d/%d — empty (end of data)",
+                         page, self.max_pages)
                 break
+            log.info(
+                "assembly: page %d/%d — got %d bills "
+                "(cumulative_kept=%d, calls=%d/%d, elapsed=%ds)",
+                page, self.max_pages, len(rows),
+                len(out), self._calls_made, self.daily_call_budget,
+                int(time.monotonic() - t_start),
+            )
 
             seen_old = 0
             for it in rows:
@@ -212,11 +247,14 @@ class AssemblyAdapter:
                 bill_no = it.get("BILL_NO")
                 if bill_no and str(bill_no) in cursor_seen:
                     skipped_cursor += 1
+                    if skipped_cursor % 100 == 0:
+                        log.info("assembly: cursor skipped %d bills so far",
+                                 skipped_cursor)
                     continue
                 if not self._budget_ok():
                     log.warning(
-                        "assembly: budget %d reached at bill — break",
-                        self.daily_call_budget,
+                        "assembly: budget %d reached at bill (call %d) — break",
+                        self.daily_call_budget, self._calls_made,
                     )
                     break
 
@@ -226,6 +264,7 @@ class AssemblyAdapter:
                 committee = (it.get("COMMITTEE") or "").strip()
                 propose_dt_s = it.get("PROPOSE_DT", "") or ""
 
+                log.debug("assembly: bill %s — fetching SUMMARY", bill_no)
                 summary = self._fetch_bill_summary(bill_no, api_key) if bill_no else ""
                 self._calls_made += 1
                 if self.summary_sleep_s:
@@ -254,19 +293,32 @@ class AssemblyAdapter:
                         ),
                     },
                 ))
+                if len(out) % 100 == 0:
+                    log.info(
+                        "assembly: SUMMARY progress %d bills, "
+                        "calls=%d/%d, elapsed=%ds",
+                        len(out), self._calls_made, self.daily_call_budget,
+                        int(time.monotonic() - t_start),
+                    )
             else:
                 # else-of-for: only runs when inner for completed without break
                 if seen_old == len(rows):
                     skipped_old += seen_old
+                    log.info(
+                        "assembly: page %d entirely older than since — stop",
+                        page,
+                    )
                     break
                 continue
             # inner break path — outer break too
             break
 
+        elapsed = int(time.monotonic() - t_start)
         log.info(
             "assembly OpenAPI: fetched %d bills (cursor_skip=%d, "
-            "old_skip=%d, total_calls=%d)",
+            "old_skip=%d, total_calls=%d, elapsed=%ds)",
             len(out), skipped_cursor, skipped_old, self._calls_made,
+            elapsed,
         )
         return out
 
@@ -391,13 +443,21 @@ def rebuild_summaries(con: sqlite3.Connection,
     counts = {"considered": len(rows), "todo": len(todo),
               "updated": 0, "summary_empty": 0,
               "calls": 0, "budget_break": 0}
-    log.info("assembly rebuild: %d docs need SUMMARY (of %d total)",
-             counts["todo"], counts["considered"])
+    t_start = time.monotonic()
+    log.info(
+        "assembly rebuild: starting — %d docs need SUMMARY (of %d total), "
+        "daily_budget=%d",
+        counts["todo"], counts["considered"], adapter.daily_call_budget,
+    )
 
     for i, (doc_id, url, title, published_at, meta, bill_no) in enumerate(todo):
         if not adapter._budget_ok():
-            log.warning("rebuild: budget %d reached at %d/%d — committing partial",
-                        adapter.daily_call_budget, i, counts["todo"])
+            log.warning(
+                "rebuild: budget %d reached at %d/%d (calls=%d) — "
+                "committing partial",
+                adapter.daily_call_budget, i, counts["todo"],
+                adapter._calls_made,
+            )
             counts["budget_break"] = 1
             break
         summary = adapter._fetch_bill_summary(bill_no, api_key)
@@ -431,18 +491,26 @@ def rebuild_summaries(con: sqlite3.Connection,
         counts["updated"] += 1
 
         if (i + 1) % progress_every == 0:
-            log.info("rebuild: %d/%d (%.1f%%) updated=%d empty=%d calls=%d",
-                     i + 1, counts["todo"],
-                     100 * (i + 1) / max(1, counts["todo"]),
-                     counts["updated"], counts["summary_empty"],
-                     adapter._calls_made)
+            log.info(
+                "rebuild: %d/%d (%.1f%%) updated=%d empty=%d "
+                "calls=%d/%d elapsed=%ds",
+                i + 1, counts["todo"],
+                100 * (i + 1) / max(1, counts["todo"]),
+                counts["updated"], counts["summary_empty"],
+                adapter._calls_made, adapter.daily_call_budget,
+                int(time.monotonic() - t_start),
+            )
             con.commit()
 
     counts["calls"] = adapter._calls_made
     con.commit()
-    log.info("rebuild: done. updated=%d empty=%d calls=%d budget_break=%d",
-             counts["updated"], counts["summary_empty"], counts["calls"],
-             counts["budget_break"])
+    elapsed = int(time.monotonic() - t_start)
+    log.info(
+        "rebuild: done. updated=%d empty=%d calls=%d budget_break=%d "
+        "elapsed=%ds",
+        counts["updated"], counts["summary_empty"], counts["calls"],
+        counts["budget_break"], elapsed,
+    )
     return counts
 
 

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Protocol
@@ -117,6 +118,9 @@ class _AdapterWarningCapture(logging.Handler):
 def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
     """Fetch + persist; returns {docs, vars, events, dups}."""
     started_at = _iso(datetime.now(timezone.utc))
+    t_start = time.monotonic()
+    log.info("ingest %s: starting (since=%s)",
+             adapter.name, since.date().isoformat())
     run_id = db.begin_ingestion_run(con, adapter.name, started_at)
     docs = vars_ = events = dups = 0
     err: str | None = None
@@ -175,9 +179,14 @@ def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
         err = f"{err} | warnings: {warn_str}" if err else f"warnings: {warn_str}"
 
     finished_at = _iso(datetime.now(timezone.utc))
+    elapsed = int(time.monotonic() - t_start)
     db.finish_ingestion_run(con, run_id, finished_at=finished_at,
                             doc_count=docs, var_count=vars_,
                             event_count=events, error=err)
     con.commit()
+    log.info("ingest %s: done — docs=%d, vars=%d, events=%d, dups=%d, "
+             "elapsed=%ds%s",
+             adapter.name, docs, vars_, events, dups, elapsed,
+             f", error={err[:100]}" if err else "")
     return {"docs": docs, "vars": vars_, "events": events, "dups": dups,
             "error": err}

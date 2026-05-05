@@ -25,6 +25,7 @@ import argparse
 import hashlib
 import logging
 import os
+import sqlite3
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -35,6 +36,10 @@ from dotenv import load_dotenv
 from . import Document, IngestResult, IngestedRawEvent, run_adapter
 from catalog.events import EVENT_CATALOG
 from catalog.variables import VARIABLE_CATALOG
+from .seeds import (
+    gather_news_seeds, gather_news_active_seeds,
+    _BROAD_SEEDS_STATIC_MINIMAL,
+)
 
 load_dotenv()
 log = logging.getLogger(__name__)
@@ -47,37 +52,64 @@ USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 class NewsAdapter:
     name = "news"
 
-    # Broad-sweep seed keywords. Catalog filtering throws away anything
-    # not yet known — but reform regimes (e.g. 2025-2026 governance package)
-    # introduce *new* topics by definition. Broad mode lets the LLM agenda
-    # extractor see those docs and propose new EventTemplates / variables.
-    BROAD_SEEDS: tuple[str, ...] = (
-        "한국 경제", "한국 시장", "코스피", "코스닥",
-        "재벌", "대기업", "기업 거버넌스",
-        "이재명", "정부 정책", "국회 본회의",
-        "공정거래위원회", "금융위원회", "기획재정부",
-        "행동주의 펀드", "지배구조",
-        "상법", "자본시장법", "공정거래법",
-    )
-
     def __init__(self, max_per_keyword: int = 10, *,
-                 mode: str = "catalog"):
+                 mode: str = "catalog",
+                 con: sqlite3.Connection | None = None):
         """
         mode:
-          - "catalog": precision — only keywords from active VARIABLE/EVENT
-            catalogs (legacy default).
-          - "broad":   recall — only BROAD_SEEDS, no catalog filtering. Best
-            paired with the LLM agenda extractor.
-          - "hybrid":  union of catalog + broad seeds.
+          - "catalog": precision — keywords from the *static* in-process
+            VARIABLE_CATALOG / EVENT_CATALOG (legacy default).
+          - "broad":   recall — dynamic 4-layer seed (target_events.yaml +
+            event_templates_dyn + variable_specs_dyn + cold-start fallback).
+            Best paired with the LLM agenda extractor.
+          - "hybrid":  union of catalog (static) and broad (dynamic) seeds.
+
+        con:
+          Used by `broad` and `hybrid` to read *_dyn tables. Without it,
+          dynamic layers fall back to cold-start static minimal seeds.
         """
         self.max_per_keyword = max_per_keyword
         if mode not in ("catalog", "broad", "hybrid"):
             raise ValueError(f"unknown mode={mode!r}")
         self.mode = mode
+        self.con = con
 
     # ---- helpers ---------------------------------------------------------
 
     def _catalog_keywords(self) -> list[str]:
+        """Catalog mode: keywords from active *_dyn rows.
+
+        With `self.con` available, delegates to
+        `seeds.gather_news_active_seeds`:
+          · all active event_templates_dyn (no source filter)
+          · active variable_specs_dyn[source='news']
+
+        Without `self.con` (cold-start safety: NewsAdapter() instantiated
+        without DB context) falls back to the legacy static catalog read
+        in `_catalog_keywords_static_fallback`. The static .py files
+        catalog/events.py and catalog/variables.py are *cold-start seeds
+        only* — PR1's seed_dynamic_catalog_from_static already replicated
+        their content into *_dyn, so steady state should always go
+        through gather_news_active_seeds.
+        """
+        if self.con is not None:
+            bundle = gather_news_active_seeds(self.con)
+            by = bundle["by_source"]
+            log.info(
+                "news adapter: catalog keywords by source: "
+                "events_active_all=%d, vars_active_news=%d, "
+                "total unique=%d",
+                by["event_templates_dyn_active_all"],
+                by["variable_specs_dyn_active_news"],
+                by["total_unique"],
+            )
+            return bundle["keywords"]
+        return self._catalog_keywords_static_fallback()
+
+    def _catalog_keywords_static_fallback(self) -> list[str]:
+        """Legacy path — used only when self.con is None. Reads the
+        static VARIABLE_CATALOG / EVENT_CATALOG tuples directly. These
+        files are kept as cold-start seed source for fresh installs."""
         seen: set[str] = set()
         out: list[str] = []
         for v in VARIABLE_CATALOG:
@@ -94,15 +126,63 @@ class NewsAdapter:
                     seen.add(kw); out.append(kw)
         return out
 
+    def _broad_keywords(self) -> list[str]:
+        """Broad mode: active+proposed *_dyn ∪ target_events.yaml ∪
+        cold-start fallback. Delegates to seeds.gather_news_seeds.
+        Emits per-layer breakdown log so operators can see which source
+        is contributing what."""
+        if self.con is None:
+            log.info("news adapter: no con — broad falls back to "
+                     "cold-start minimal seeds (%d kw)",
+                     len(_BROAD_SEEDS_STATIC_MINIMAL))
+            return list(_BROAD_SEEDS_STATIC_MINIMAL)
+        bundle = gather_news_seeds(self.con)
+        by = bundle["by_source"]
+        log.info(
+            "news adapter: broad keywords by source: cold-start=%d, "
+            "target_events=%d, event_templates_dyn=%d (active+proposed), "
+            "variable_specs_dyn=%d (active+proposed, source=news), "
+            "total unique=%d",
+            by["cold_start"], by["target_events"],
+            by["event_templates_dyn"], by["variable_specs_dyn"],
+            by["total_unique"],
+        )
+        return bundle["keywords"]
+
     def _keywords(self) -> list[str]:
+        # Always compute both sides for diagnostics. Architectural
+        # invariant: catalog ⊆ broad (active ⊆ active+proposed). If
+        # catalog has anything broad doesn't, that's a drift bug.
+        catalog_kws = self._catalog_keywords()
+        broad_kws = self._broad_keywords()
+
+        catalog_set = set(catalog_kws)
+        broad_set = set(broad_kws)
+        overlap = catalog_set & broad_set
+        catalog_only = catalog_set - broad_set
+        broad_only = broad_set - catalog_set
+        log.info(
+            "news adapter: keyword sets — catalog (active _dyn)=%d, "
+            "broad (active+proposed+target+cold)=%d, overlap=%d, "
+            "catalog_only=%d, broad_only=%d",
+            len(catalog_kws), len(broad_kws), len(overlap),
+            len(catalog_only), len(broad_only),
+        )
+        if catalog_only:
+            log.warning(
+                "news adapter: catalog has %d keywords NOT in broad — "
+                "architectural drift (catalog ⊆ broad invariant broken).",
+                len(catalog_only),
+            )
+
         if self.mode == "catalog":
-            return self._catalog_keywords()
+            return catalog_kws
         if self.mode == "broad":
-            return list(self.BROAD_SEEDS)
-        # hybrid
-        out = self._catalog_keywords()
-        seen = set(out)
-        for kw in self.BROAD_SEEDS:
+            return broad_kws
+        # hybrid: catalog ∪ broad (= broad when catalog ⊆ broad holds)
+        seen = set(catalog_kws)
+        out = list(catalog_kws)
+        for kw in broad_kws:
             if kw not in seen:
                 seen.add(kw); out.append(kw)
         return out

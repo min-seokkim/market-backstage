@@ -80,7 +80,7 @@ def prepare(con: sqlite3.Connection,
         from ingest.bok_ecos import BokEcosAdapter
         from ingest.govt_press import GovtPressAdapter
         from ingest.assembly import AssemblyAdapter
-        for adapter in (DartAdapter(), NewsAdapter(max_per_keyword=3),
+        for adapter in (DartAdapter(), NewsAdapter(max_per_keyword=3, con=con),
                         MacroAdapter(), BokEcosAdapter(),
                         GovtPressAdapter(), AssemblyAdapter(con=con)):
             res = run_adapter(con, adapter, since)
