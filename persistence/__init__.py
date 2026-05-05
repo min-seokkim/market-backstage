@@ -43,6 +43,8 @@ from .dyn_catalog_io import (
     insert_actor_proposal, insert_causal_edge_proposal,
     # PR-Z
     upsert_actor_dyn, upsert_edge,
+    # PR-Z2
+    upsert_alias, resolve_canonical,
 )
 
 __all__ = [
@@ -72,4 +74,6 @@ __all__ = [
     "insert_actor_proposal", "insert_causal_edge_proposal",
     # PR-Z
     "upsert_actor_dyn", "upsert_edge",
+    # PR-Z2
+    "upsert_alias", "resolve_canonical",
 ]

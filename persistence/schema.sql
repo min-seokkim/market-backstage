@@ -242,6 +242,40 @@ CREATE INDEX IF NOT EXISTS idx_edges_dyn_src  ON edges_dyn(src_actor_id);
 CREATE INDEX IF NOT EXISTS idx_edges_dyn_dst  ON edges_dyn(dst_actor_id);
 CREATE INDEX IF NOT EXISTS idx_edges_dyn_type ON edges_dyn(edge_type);
 
+-- ==== PR-Z2: person alias mapping ========================================
+-- alias_actor_id (Tier C surface seed e.g. 'person_홍석조_BGF') →
+-- canonical_actor_id (Tier A strong identifier e.g.
+-- 'person_홍석조_洪錫祚_19460519'). Append-only: PK includes resolved_at,
+-- so re-resolution at a later timestamp creates a new row instead of
+-- overwriting (history preserved). `resolve_canonical()` always returns
+-- the latest mapping per alias.
+--
+-- evidence_source convention (not enum-enforced):
+--   'NEC_match'         — strong identifier match via NEC (선거관리위원회)
+--   'DART_match'        — corp_code + executive disclosure cross-ref
+--   'LLM_RAG'           — LLM batch resolution over RAG context
+--   'manual_review'     — operator override
+--   'deterministic'     — exact name+DOB or other unambiguous join
+--
+-- Resolution by PR4-PERSON. PR4-FTC may seed Tier C aliases without
+-- canonical mapping (those rows simply have no person_aliases entry yet).
+CREATE TABLE IF NOT EXISTS person_aliases (
+    alias_actor_id     TEXT NOT NULL,
+    canonical_actor_id TEXT NOT NULL,
+    confidence         REAL,                -- 0~1, NULL allowed
+    evidence_source    TEXT,
+    resolved_at        TEXT NOT NULL,       -- ISO8601
+    metadata           TEXT,                -- JSON
+    PRIMARY KEY (alias_actor_id, canonical_actor_id, resolved_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_person_aliases_alias
+    ON person_aliases(alias_actor_id);
+CREATE INDEX IF NOT EXISTS idx_person_aliases_canonical
+    ON person_aliases(canonical_actor_id);
+CREATE INDEX IF NOT EXISTS idx_person_aliases_evidence
+    ON person_aliases(evidence_source);
+
 CREATE TABLE IF NOT EXISTS extraction_runs (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at        TEXT NOT NULL,

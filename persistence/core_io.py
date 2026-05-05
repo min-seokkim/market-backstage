@@ -50,6 +50,32 @@ def _apply_idempotent_migrations(con: sqlite3.Connection) -> None:
     if "type" not in cols:
         con.execute("ALTER TABLE actors_dyn ADD COLUMN type TEXT")
 
+    # PR-Z2: person_aliases table. schema.sql already has CREATE TABLE
+    # IF NOT EXISTS, so executescript handles fresh + existing DBs. This
+    # block is kept for explicit upgrade tracking — the existence check
+    # is a no-op when the table is already there.
+    tables = {r[0] for r in con.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+    if "person_aliases" not in tables:
+        con.executescript("""
+            CREATE TABLE IF NOT EXISTS person_aliases (
+                alias_actor_id     TEXT NOT NULL,
+                canonical_actor_id TEXT NOT NULL,
+                confidence         REAL,
+                evidence_source    TEXT,
+                resolved_at        TEXT NOT NULL,
+                metadata           TEXT,
+                PRIMARY KEY (alias_actor_id, canonical_actor_id, resolved_at)
+            );
+            CREATE INDEX IF NOT EXISTS idx_person_aliases_alias
+                ON person_aliases(alias_actor_id);
+            CREATE INDEX IF NOT EXISTS idx_person_aliases_canonical
+                ON person_aliases(canonical_actor_id);
+            CREATE INDEX IF NOT EXISTS idx_person_aliases_evidence
+                ON person_aliases(evidence_source);
+        """)
+
 
 # ---- Phase 3-5 sim tables --------------------------------------------------
 
@@ -218,6 +244,7 @@ def summary(con: sqlite3.Connection) -> dict[str, int]:
                   "market_pressure", "edges",
                   "event_templates_dyn", "variable_specs_dyn",
                   "causal_edges_dyn", "actors_dyn", "edges_dyn",
+                  "person_aliases",
                   "extraction_runs", "extraction_doc_links",
                   "extraction_decisions",
                   "actor_utterances", "eum_traces"):

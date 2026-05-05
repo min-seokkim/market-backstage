@@ -516,3 +516,68 @@ def upsert_edge(con: sqlite3.Connection, *,
         (src_actor_id, dst_actor_id, edge_type, ts,
          json.dumps(metadata, ensure_ascii=False) if metadata else None),
     )
+
+
+# ---------------------------------------------------------------------------
+# PR-Z2: person alias mapping
+# ---------------------------------------------------------------------------
+
+
+def upsert_alias(con: sqlite3.Connection, *,
+                 alias_actor_id: str,
+                 canonical_actor_id: str,
+                 confidence: float | None = None,
+                 evidence_source: str | None = None,
+                 metadata: dict | None = None,
+                 resolved_at: str | None = None,
+                 ) -> None:
+    """Register an alias→canonical mapping in person_aliases (append-only).
+
+    PK is (alias_actor_id, canonical_actor_id, resolved_at) so re-resolving
+    the same alias at a later time creates a new row instead of overwriting
+    — full history is preserved. INSERT OR REPLACE only collides on the
+    exact same (alias, canonical, resolved_at) tuple, which the caller
+    can deliberately use for de-duplicating retries within the same
+    resolution batch.
+
+    Validation:
+      - confidence ∈ [0.0, 1.0] when provided (NULL allowed)
+      - evidence_source is free-form (no enum), but conventional values are:
+        'NEC_match' | 'DART_match' | 'LLM_RAG' | 'manual_review' | 'deterministic'
+    """
+    if confidence is not None and not (0.0 <= confidence <= 1.0):
+        raise ValueError(
+            f"upsert_alias: confidence must be in [0.0, 1.0], got {confidence}"
+        )
+    resolved_at = resolved_at or _now_iso()
+    con.execute(
+        "INSERT OR REPLACE INTO person_aliases "
+        "(alias_actor_id, canonical_actor_id, confidence, "
+        " evidence_source, resolved_at, metadata) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (alias_actor_id, canonical_actor_id, confidence,
+         evidence_source, resolved_at,
+         json.dumps(metadata, ensure_ascii=False) if metadata else None),
+    )
+
+
+def resolve_canonical(con: sqlite3.Connection, alias_actor_id: str
+                      ) -> str | None:
+    """Return the latest canonical_actor_id for `alias_actor_id`.
+
+    Selection order:
+      1. highest confidence (NULL last)
+      2. most recent resolved_at as tiebreaker
+
+    Returns None when no mapping exists. Caller decides fallback behavior
+    (e.g. treat alias_actor_id itself as canonical for unresolved Tier C
+    seeds).
+    """
+    row = con.execute(
+        "SELECT canonical_actor_id FROM person_aliases "
+        "WHERE alias_actor_id = ? "
+        "ORDER BY confidence IS NULL, confidence DESC, resolved_at DESC "
+        "LIMIT 1",
+        (alias_actor_id,),
+    ).fetchone()
+    return row[0] if row else None
