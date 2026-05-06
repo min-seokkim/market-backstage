@@ -122,6 +122,7 @@ rankings:
     한국투자금융: 4
     대우건설: 4
     대우조선해양: 4
+    엘아이지: 4         # PR4-CANONICAL C4 retrofit: 153 actors in DB (LIG손해보험 etc, LG에서 분리)
 
     # ---- 5: 100대 외 (그 외 명시 — 모르는 그룹은 default 5로 fall-through) ----
     빗썸: 5
