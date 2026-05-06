@@ -79,7 +79,7 @@ def milestone_trajectory(df: pd.DataFrame) -> go.Figure:
     fig = px.bar(
         df, x="pr_milestone", y="count",
         text="count",
-        title="Cumulative actors by PR milestone",
+        title="PR 마일스톤별 누적 행위자 수",
         color="pr_milestone",
     )
     fig.update_traces(textposition="outside")
@@ -102,7 +102,7 @@ def president_timeline(df: pd.DataFrame) -> go.Figure:
         y="election_index",
         text=df["winner_name"] + " (" + df["hanja"].fillna("") + ")",
         size_max=20,
-        title="9 대통령 archive (13~21대, 1987~2025)",
+        title="역대 대통령 9명 (13~21대, 1987~2025)",
         hover_data=["birthday", "dugsu", "dugyul"],
     )
     fig.update_traces(textposition="top center", marker=dict(size=14))
@@ -139,7 +139,7 @@ def cross_election_lifecycle(df: pd.DataFrame, person_label: str = "") -> go.Fig
         color="party",
         symbol="status",
         size_max=15,
-        title=f"Cross-election lifecycle: {person_label}".strip(),
+        title=f"출마 이력 — {person_label}".strip(),
         hover_data=["alias_actor_id", "candidate_type", "giho", "status"],
     )
     fig.update_traces(marker=dict(size=12))
@@ -154,7 +154,7 @@ def edge_type_breakdown(df: pd.DataFrame) -> go.Figure:
     fig = px.bar(
         df, x="edge_type", y="count", color="domain",
         text="count", barmode="stack",
-        title="Edges by type × domain (NEC vs FTC)",
+        title="관계 유형 × 도메인 (NEC vs FTC)",
     )
     fig.update_traces(textposition="inside")
     return _apply_theme(fig)

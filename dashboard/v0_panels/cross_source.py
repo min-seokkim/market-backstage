@@ -15,26 +15,25 @@ from dashboard import v0_queries as q
 
 
 def render() -> None:
-    st.title("Cross-source NEC ↔ FTC")
+    st.title("교차 매칭 — 선관위(NEC) ↔ 공정위(FTC)")
     st.caption(
-        "PR4-PERSON 직전 sanity check: NEC 정치인 ↔ FTC chaebol 임원 "
-        "동명 actor 분포. Tier A (hanja+dob both match) = 진짜 link, "
-        "Tier C (이름만) = 동명이인 noise."
+        "PR4-PERSON 직전 sanity check: 선관위 정치인 ↔ 공정위 임원 동명 행위자 분포. "
+        "Tier A (한자+생년월일 모두 일치) = 진짜 매칭, "
+        "Tier C (이름만 일치) = 동명이인 noise."
     )
 
     same_name_df = q.nec_ftc_same_name()
-    st.metric("Total NEC ↔ FTC same-name pairs", f"{len(same_name_df):,}")
+    st.metric("선관위 ↔ 공정위 동명 pair 총합", f"{len(same_name_df):,}")
 
     if same_name_df.empty:
         st.warning(
-            "No NEC↔FTC same-name pairs found. "
-            "Check that both PR4-FTC and PR4-NEC ingests have completed."
+            "동명 pair 가 없습니다. PR4-FTC + PR4-NEC ingest 완료 여부를 확인해주세요."
         )
         return
 
     st.divider()
 
-    st.subheader("Tier breakdown")
+    st.subheader("Tier 분류")
     tier_df = q.same_name_tier_breakdown()
     tier_dict = {row["tier"]: row["count"] for _, row in tier_df.iterrows()}
     a_count = int(tier_dict.get("A", 0))
@@ -42,47 +41,47 @@ def render() -> None:
     c_count = int(tier_dict.get("C", 0))
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("Tier A — hanja + dob match",
+    c1.metric("Tier A — 한자 + 생년월일 일치",
               f"{a_count:,}",
-              help="NFKC-normalized exact match on both fields")
-    c2.metric("Tier B — hanja match only",
+              help="NFKC 정규화 후 양쪽 정확히 일치")
+    c2.metric("Tier B — 한자만 일치",
               f"{b_count:,}",
-              help="Hanja matches but dob missing on at least one side")
-    c3.metric("Tier C — name only (likely 동명이인)",
+              help="한자는 일치하나 한쪽 생년월일 누락")
+    c3.metric("Tier C — 이름만 일치 (동명이인 noise)",
               f"{c_count:,}")
 
     st.markdown(
         f"""
-**False-positive estimate** (PR4-PERSON 전략 grounding):
+**PR4-PERSON 전략 grounding** — 거짓양성 추정:
 
-- Total 동명 pairs: **{len(same_name_df):,}**
-- **Tier A** (high-confidence cross-source link): **{a_count:,}**
-- Tier B (medium): **{b_count:,}**
-- Tier C (likely noise): **{c_count:,}**
+- 동명 pair 총합: **{len(same_name_df):,}**
+- **Tier A** (고신뢰 cross-source 매칭): **{a_count:,}**
+- Tier B (중간 신뢰): **{b_count:,}**
+- Tier C (동명이인 noise): **{c_count:,}**
 
-PR4-PERSON 1차 전략: Tier A pair만 `upsert_alias(confidence=1.0,
-evidence_source='cross_nec_ftc_hanja_dob_match')` 로 박는다. Tier B는
-LLM RAG 보강 (huboid + chaebol career field cross-ref). Tier C는 무시.
+PR4-PERSON 1차 전략: Tier A pair 만 `upsert_alias(confidence=1.0,
+evidence_source='cross_nec_ftc_hanja_dob_match')` 로 적재. Tier B 는
+LLM RAG 보강 (huboid + 재벌 이력 cross-ref). Tier C 는 무시.
         """
     )
 
     st.divider()
 
-    st.subheader("Name frequency — top 20 colliders")
+    st.subheader("이름별 충돌 빈도 — 상위 20")
     st.caption(
-        "한국 흔한 이름 (김영수, 김민수 등)이 noise를 inflate. "
-        "Tier A로 갈수록 이런 흔한 이름의 pair는 자연스럽게 걸러짐."
+        "한국 흔한 이름 (김영수, 김민수 등) 이 noise 를 부풀린다. "
+        "Tier A 로 갈수록 흔한 이름의 pair 는 자연스럽게 걸러진다."
     )
     top_df = q.same_name_top20()
     st.plotly_chart(
         ch.bar_horizontal(top_df, "name", "pair_count",
-                          title="Top 20 NEC↔FTC same-name pairs"),
+                          title="선관위↔공정위 동명 pair 상위 20"),
         use_container_width=True,
     )
 
     st.divider()
 
-    st.subheader("Sample Tier A pairs (top 20)")
+    st.subheader("Tier A pair 샘플 (상위 20)")
     # Recompute Tier A subset and show
     import unicodedata
     df = same_name_df.copy()
@@ -101,13 +100,13 @@ LLM RAG 보강 (huboid + chaebol career field cross-ref). Tier C는 무시.
         & (df["nec_dob"] == df["ftc_dob"])
     ]
     if a_df.empty:
-        st.info("No Tier A pairs detected.")
+        st.info("Tier A pair 가 없습니다.")
     else:
         st.dataframe(
             a_df[["name", "nec_hanja", "nec_dob", "nec_id", "ftc_id"]].head(20),
             use_container_width=True, hide_index=True,
         )
         st.caption(
-            f"Total Tier A pairs: {len(a_df):,} (showing first 20). "
-            "These are PR4-PERSON's primary input."
+            f"Tier A pair 총합: {len(a_df):,} (상위 20개 표시). "
+            "PR4-PERSON 의 1차 입력."
         )

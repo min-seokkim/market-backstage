@@ -9,9 +9,9 @@ from dashboard import v0_queries as q
 
 
 def render() -> None:
-    st.title("Actor distribution")
+    st.title("행위자 분포")
 
-    st.subheader("By type")
+    st.subheader("유형(type) 별")
     type_df = q.actors_by_type()
     st.plotly_chart(
         ch.bar_horizontal(type_df, "type", "count",
@@ -19,7 +19,7 @@ def render() -> None:
         use_container_width=True,
     )
 
-    st.subheader("By proposal_source")
+    st.subheader("출처(proposal_source) 별")
     source_df = q.actors_by_source()
     st.plotly_chart(
         ch.bar_horizontal(source_df, "proposal_source", "count",
@@ -29,13 +29,13 @@ def render() -> None:
 
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("NEC subtype detail")
+        st.subheader("선관위 (NEC) 세부")
         st.dataframe(
             q.nec_subtype_detail(),
             use_container_width=True, hide_index=True,
         )
     with col2:
-        st.subheader("FTC subtype detail")
+        st.subheader("공정위 (FTC) 세부")
         st.dataframe(
             q.ftc_subtype_detail(),
             use_container_width=True, hide_index=True,

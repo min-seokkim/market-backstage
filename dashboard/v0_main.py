@@ -18,32 +18,32 @@ import streamlit as st
 
 
 PAGES: dict[str, str] = {
-    "Summary": "summary",
-    "Actors": "actors",
-    "NEC Layer": "nec_layer",
-    "FTC Layer": "ftc_layer",
-    "Cross-source": "cross_source",
-    "Edges": "edges",
-    "Aliases": "aliases",
-    "Health Check": "health",
+    "요약": "summary",
+    "행위자": "actors",
+    "선관위 (NEC)": "nec_layer",
+    "공정위 (FTC)": "ftc_layer",
+    "교차 매칭 (NEC↔FTC)": "cross_source",
+    "관계 (edges)": "edges",
+    "별칭 매핑 (aliases)": "aliases",
+    "헬스 체크": "health",
 }
 
 
 def main() -> None:
     st.set_page_config(
-        page_title="MSI v0 — Korean Polecon Dashboard",
+        page_title="MSI v0 — 한국 정·재계 그래프 대시보드",
         layout="wide",
         initial_sidebar_state="expanded",
     )
 
     with st.sidebar:
         st.title("MSI v0")
-        st.caption("Korean political-economic graph base.")
-        page = st.radio("Panel", list(PAGES.keys()), label_visibility="collapsed")
+        st.caption("한국 정·재계 그래프 베이스")
+        page = st.radio("패널", list(PAGES.keys()), label_visibility="collapsed")
         st.divider()
-        st.caption(f"DB read at {datetime.now():%Y-%m-%d %H:%M:%S}")
+        st.caption(f"DB 조회 시각: {datetime.now():%Y-%m-%d %H:%M:%S}")
         st.caption(
-            "Read-only. UPDATE/INSERT/DELETE/DROP/ALTER cannot reach the DB."
+            "읽기 전용. UPDATE/INSERT/DELETE/DROP/ALTER 는 DB에 도달하지 못함."
         )
 
     panel_module = importlib.import_module(

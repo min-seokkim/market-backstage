@@ -20,38 +20,38 @@ def _check_row(label: str, actual: int, expected: int, mode: str,
     else:  # min
         ok = actual >= expected
         comp = "≥"
-    msg = f"**{label}**: {actual:,} (expected {comp} {expected:,})"
+    msg = f"**{label}**: {actual:,} (기대값 {comp} {expected:,})"
     if note:
-        msg += f"\n\n_Note: {note}_"
+        msg += f"\n\n_비고: {note}_"
     return msg, ok
 
 
 def render() -> None:
-    st.title("Health Check")
+    st.title("헬스 체크")
     st.caption(
-        "Expected values 검증. ❌ 발견 시 즉시 investigate — "
-        "PR4-PERSON 후속 PR이 graph base 무결성에 의존."
+        "기대값 검증. ❌ 발견 시 즉시 점검 — "
+        "후속 PR4-PERSON 이 그래프 베이스 무결성에 의존."
     )
 
     checks = [
-        ("Total actors_dyn", q.count_actors(), 200_000, "min", ""),
-        ("Total edges_dyn", q.count_edges(), 270_000, "min", ""),
-        ("Total person_aliases", q.count_aliases(), 80_000, "min", ""),
+        ("actors_dyn 총합", q.count_actors(), 200_000, "min", ""),
+        ("edges_dyn 총합", q.count_edges(), 270_000, "min", ""),
+        ("person_aliases 총합", q.count_aliases(), 80_000, "min", ""),
         ("Tier A confidence=1.0",
          q.count_tier_a(), 81_259, "exact",
-         "PR4-NEC: 모든 alias가 hanja+dob 강식별자 (NEC API 100% 보유)"),
-        ("Unique canonical politicians",
+         "PR4-NEC: 모든 alias 가 한자+생년월일 강식별자 보유 (NEC API 100%)"),
+        ("고유 canonical 정치인",
          q.count_unique_politicians(), 45_000, "min",
-         "Cross-election dedup 후 unique person 수"),
-        ("9 대통령 archive (sgTypecode=1)",
+         "선거 횟수 dedup 후 unique person 수"),
+        ("역대 대통령 9명 (sgTypecode=1)",
          q.count_presidents(), 9, "exact",
          "13~21대 election actor entries"),
-        ("Chaebol groups (cumulative across years)",
+        ("기업집단 (연도별 누적)",
          q.count_chaebol_groups(), 89, "min",
-         "2025년 92 + 2021~2024 누적 (cross-year unique)"),
-        ("이재명 (1964-12-22) cross-election aliases",
+         "2025년 92 + 2021~2024 누적 unique 그룹"),
+        ("이재명 (1964-12-22) 출마 이력",
          q.count_lee_aliases(), 9, "exact",
-         "NFKC-normalized lookup. NEC 강식별자 cross-election dedup 검증."),
+         "NFKC 정규화 후 조회. NEC 강식별자 cross-election dedup 검증."),
     ]
 
     n_pass = 0
@@ -61,17 +61,17 @@ def render() -> None:
             st.success(f"✅ {msg}")
             n_pass += 1
         else:
-            st.error(f"❌ {msg}\n\n→ INVESTIGATE")
+            st.error(f"❌ {msg}\n\n→ 점검 필요")
 
     st.divider()
-    st.metric("Health checks passed", f"{n_pass} / {len(checks)}")
+    st.metric("통과한 체크", f"{n_pass} / {len(checks)}")
 
     if n_pass == len(checks):
         st.balloons()
     else:
         st.warning(
-            "Some checks failed. Possible causes: "
-            "(1) DB drift since last ingest, "
-            "(2) PR-Z2 schema not applied, "
-            "(3) NFKC normalization regression on 한자/birthday lookups."
+            "일부 체크 실패. 가능한 원인: "
+            "(1) 마지막 ingest 이후 DB drift, "
+            "(2) PR-Z2 schema 미적용, "
+            "(3) 한자/생년월일 조회 시 NFKC 정규화 회귀."
         )
