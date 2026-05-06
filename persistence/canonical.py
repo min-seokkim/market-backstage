@@ -518,44 +518,403 @@ def llm_generate_chaebol_aliases(con: sqlite3.Connection,
 
 
 # ---------------------------------------------------------------------------
-# Skeletons (full impl in C5)
+# Tier B/C/D fuzzy match — NEC ↔ DART cross-source canonical resolution
 # ---------------------------------------------------------------------------
+
+_LLM_DISAMBIGUATE_COST_USD = 0.005  # Sonnet ~$0.005/disambiguation
+
 
 def fuzzy_match_cross_sector(con: sqlite3.Connection,
                               high_value_only: bool = False,
                               llm_disambiguate: bool = True,
                               llm_cap: int = 1000) -> dict[str, Any]:
-    """C5 — Tier B/C/D NEC ↔ DART matching by name + birthday[:6].
+    """NEC canonical ↔ DART executive matching via name + birthday[:6].
 
-    Skeleton in C2; full impl in C5 once dart_executive_state is
-    populated by C3/C4.
+    Pipeline:
+      Tier A — already covered: hanja+dob match (NEC has both, DART X)
+      Tier B — name + YYYYMM clean match (1 candidate) → confidence 0.85
+      Tier C — name + YYYYMM multi-candidate → score by company / role
+      Tier D — score < 0.7 → LLM disambiguate (gated by daily $5 cap)
+
+    high_value_only=True restricts to peak_political_tier <= 2 OR
+    peak_economic_tier <= 2 (top politicians + top chaebol owners),
+    keeping LLM cost bounded for the long-tail.
+
+    Writes results to actor_canonical_links (state='proposed' for fuzzy
+    matches; LLM Tier D gets state='proposed' too — promotion via
+    update_trust_score after media-mention cross-confirmation).
     """
-    return {
-        "status": "skeleton",
+    stats = {
         "tier_b_match": 0,
         "tier_c_disambiguate": 0,
         "tier_d_llm": 0,
         "no_match": 0,
+        "skipped_no_birthday": 0,
         "cost_estimate_usd": 0.0,
     }
 
+    # Pull NEC canonicals with birthday. high_value_only filter is on
+    # peak tiers (the join target — actors_dyn).
+    nec_query = (
+        "SELECT id, name, birthday, peak_political_tier, peak_economic_tier "
+        "FROM actors_dyn "
+        "WHERE proposal_source = 'nec_canonical' "
+        "  AND birthday IS NOT NULL AND length(birthday) >= 6"
+    )
+    if high_value_only:
+        nec_query += (
+            " AND ("
+            " peak_political_tier IS NOT NULL AND peak_political_tier <= 2"
+            " OR peak_economic_tier IS NOT NULL AND peak_economic_tier <= 2"
+            ")"
+        )
+    nec_rows = con.execute(nec_query).fetchall()
+
+    for nec_id, nec_name, nec_birthday, pol_tier, eco_tier in nec_rows:
+        nec_ym = nec_birthday[:6] if nec_birthday else None
+        if not nec_ym or not nec_name:
+            stats["skipped_no_birthday"] += 1
+            continue
+
+        # DART executive candidates with same name + birth_ym
+        dart_candidates = con.execute(
+            "SELECT actor_id, nm, birth_ym, corp_name, ofcps, main_career, "
+            "       mxmm_shrholdr_relate "
+            "FROM dart_executive_state "
+            "WHERE nm = ? AND birth_ym = ?",
+            (nfkc(nec_name), nec_ym),
+        ).fetchall()
+
+        if not dart_candidates:
+            stats["no_match"] += 1
+            continue
+
+        # Dedupe by actor_id (same DART person across multiple reports)
+        seen_actor_ids: set[str] = set()
+        unique_candidates = []
+        for cand in dart_candidates:
+            if cand[0] not in seen_actor_ids:
+                seen_actor_ids.add(cand[0])
+                unique_candidates.append(cand)
+
+        if len(unique_candidates) == 1:
+            # Tier B — clean match
+            _link_canonical_pair(
+                con, nec_id, unique_candidates[0][0],
+                confidence=0.85, source="fuzzy_match", tier="B",
+            )
+            stats["tier_b_match"] += 1
+        else:
+            # Tier C — multi-candidate score
+            best = _score_candidates_tier_c(unique_candidates)
+            if best["confidence"] >= 0.7:
+                _link_canonical_pair(
+                    con, nec_id, best["actor_id"],
+                    confidence=best["confidence"],
+                    source="fuzzy_match", tier="C",
+                )
+                stats["tier_c_disambiguate"] += 1
+            elif (
+                llm_disambiguate
+                and stats["tier_d_llm"] < llm_cap
+                and llm_cost_remaining() >= _LLM_DISAMBIGUATE_COST_USD
+            ):
+                # Tier D — LLM
+                if not high_value_only or (
+                    (pol_tier is not None and pol_tier <= 2)
+                    or (eco_tier is not None and eco_tier <= 2)
+                ):
+                    result = _llm_disambiguate(
+                        con, nec_id, nec_name, unique_candidates,
+                    )
+                    stats["tier_d_llm"] += 1
+                    stats["cost_estimate_usd"] += _LLM_DISAMBIGUATE_COST_USD
+                    if result["confidence"] >= 0.7:
+                        _link_canonical_pair(
+                            con, nec_id, result["actor_id"],
+                            confidence=result["confidence"],
+                            source="llm_disambiguate", tier="D",
+                        )
+                else:
+                    stats["no_match"] += 1
+            else:
+                stats["no_match"] += 1
+    con.commit()
+    return stats
+
+
+def _score_candidates_tier_c(candidates: list[tuple]) -> dict[str, Any]:
+    """Score multi-candidate DART matches. Returns {actor_id, confidence}.
+
+    Scoring heuristic (cumulative, capped at 0.85):
+      base 0.5 (name + birth_ym already matched)
+      + 0.2 if mxmm_shrholdr_relate carries owner-family signal
+      + 0.15 if main_career mentions political/government keywords
+              (cross-domain transition signal)
+      + 0.05 per additional weak signal
+
+    Returns the highest-scoring candidate. Confidence < 0.7 triggers
+    Tier D LLM in the caller.
+    """
+    political_keywords = (
+        "국회의원", "장관", "차관", "대통령", "도지사", "시장", "구청장",
+        "청와대", "비서실", "수석", "검사", "판사", "사법", "행정",
+    )
+    owner_family_signals = ("친족", "owner", "family", "최대주주", "본인")
+
+    scored = []
+    for cand in candidates:
+        actor_id, nm, birth_ym, corp_name, ofcps, main_career, relate = cand
+        score = 0.5
+        if relate and any(s in (relate or "") for s in owner_family_signals):
+            score += 0.2
+        if main_career and any(
+            kw in (main_career or "") for kw in political_keywords
+        ):
+            score += 0.15
+        # Slight nudge for senior position (chairman / 회장)
+        if ofcps and ("회장" in ofcps or "chairman" in (ofcps or "").lower()):
+            score += 0.05
+        scored.append((actor_id, min(0.85, score)))
+
+    scored.sort(key=lambda t: -t[1])
+    best_id, best_score = scored[0]
+    return {"actor_id": best_id, "confidence": best_score}
+
+
+def _llm_disambiguate(con: sqlite3.Connection,
+                       nec_id: str, nec_name: str,
+                       candidates: list[tuple],
+                       llm_client: Any = None) -> dict[str, Any]:
+    """Tier D — LLM disambiguation when score < 0.7.
+
+    Cost ~$0.005/call (Sonnet, 800 input + 200 output). Gated by daily
+    $5 cap. Records cost via _record_llm_cost.
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key and llm_client is None:
+        return {"actor_id": candidates[0][0], "confidence": 0.0}
+    if llm_client is None:
+        try:
+            from anthropic import Anthropic
+            llm_client = Anthropic(api_key=api_key)
+        except ImportError:
+            return {"actor_id": candidates[0][0], "confidence": 0.0}
+
+    cand_lines = []
+    for i, c in enumerate(candidates):
+        actor_id, nm, birth_ym, corp_name, ofcps, main_career, relate = c
+        career_brief = (main_career or "")[:200]
+        cand_lines.append(
+            f"  후보 {i+1}: actor_id={actor_id}\n"
+            f"           회사={corp_name} · 직책={ofcps} · "
+            f"주주관계={relate}\n"
+            f"           경력={career_brief}"
+        )
+    prompt = (
+        f"NEC 정치인 actor_id={nec_id} 이름={nec_name}이 다음 DART 임원\n"
+        f"후보 중 어느 사람과 동일 인물인가요? 같은 사람이 아니면 'none'.\n\n"
+        + "\n\n".join(cand_lines) + "\n\n"
+        + "JSON으로 답해주세요. 예: "
+        + '{"actor_id": "person_dart_xxx", "confidence": 0.85, '
+          '"rationale": "..."}'
+        + ' 또는 {"actor_id": "none", "confidence": 0.0, "rationale": "..."}'
+    )
+    try:
+        response = llm_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception:
+        return {"actor_id": candidates[0][0], "confidence": 0.0}
+    _record_llm_cost(_LLM_DISAMBIGUATE_COST_USD)
+
+    try:
+        text = response.content[0].text  # type: ignore[union-attr]
+    except (AttributeError, IndexError):
+        return {"actor_id": candidates[0][0], "confidence": 0.0}
+
+    import re
+    match = re.search(r"\{[^{}]*\"actor_id\"[^{}]*\}", text, flags=re.DOTALL)
+    if not match:
+        return {"actor_id": candidates[0][0], "confidence": 0.0}
+    try:
+        parsed = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return {"actor_id": candidates[0][0], "confidence": 0.0}
+    actor_id = parsed.get("actor_id")
+    confidence = float(parsed.get("confidence", 0.0))
+    if actor_id == "none":
+        return {"actor_id": candidates[0][0], "confidence": 0.0}
+    return {"actor_id": actor_id, "confidence": confidence}
+
+
+def _link_canonical_pair(con: sqlite3.Connection,
+                          political_actor_id: str, economic_actor_id: str,
+                          confidence: float, source: str,
+                          tier: str) -> str:
+    """Insert / update actor_canonical_links row pairing political + economic
+    actors. Idempotent — same pair updates rather than duplicates.
+    """
+    canonical_id = f"person_canonical_{political_actor_id}_{economic_actor_id}_{tier}"
+
+    existing = con.execute(
+        "SELECT canonical_id, rev_history_json "
+        "FROM actor_canonical_links WHERE canonical_id = ?",
+        (canonical_id,),
+    ).fetchone()
+    if existing:
+        # Re-confirm — append rev_history but keep state
+        rev = _append_rev_history(
+            con, canonical_id, "re_verified", source,
+            rationale=f"tier={tier} confidence={confidence:.2f}",
+        )
+        con.execute(
+            "UPDATE actor_canonical_links SET rev_history_json = ? "
+            "WHERE canonical_id = ?",
+            (rev, canonical_id),
+        )
+        return canonical_id
+
+    # Pull display name from political (NEC has cleaner names)
+    name_row = con.execute(
+        "SELECT name FROM actors_dyn WHERE id = ?",
+        (political_actor_id,),
+    ).fetchone()
+    name = nfkc(name_row[0]) if name_row else ""
+
+    rev = json.dumps([{
+        "ts": _now_iso(),
+        "change_type": "created",
+        "source": source,
+        "rationale": f"tier={tier}",
+    }], ensure_ascii=False)
+
+    con.execute(
+        "INSERT INTO actor_canonical_links "
+        "(canonical_id, canonical_type, name, "
+        " political_actor_ids, economic_actor_ids, "
+        " confidence, state, source, created_at, rev_history_json) "
+        "VALUES (?, 'person', ?, ?, ?, ?, 'proposed', ?, ?, ?)",
+        (
+            canonical_id, name,
+            json.dumps([political_actor_id], ensure_ascii=False),
+            json.dumps([economic_actor_id], ensure_ascii=False),
+            confidence, source, _now_iso(), rev,
+        ),
+    )
+    return canonical_id
+
+
+# ---------------------------------------------------------------------------
+# Auto-discovery from documents
+# ---------------------------------------------------------------------------
 
 def discover_from_documents(con: sqlite3.Connection,
                              since: str | None = None) -> dict[str, int]:
-    """C5 — Auto-discovery from raw_events.matched_actors_json.
+    """Auto-discovery from raw_events (event_subtype + primary_actor_id).
 
-    Same actor mentioned in *both* political and economic event subtypes
-    → cross-sector candidate → proposed entry. Skeleton in C2.
+    Same actor as primary across both political AND economic event
+    subtypes → cross-sector candidate. Records as proposed entries with
+    source='media_mention'. Trust accrual via repeated co-occurrence
+    promotes to active.
+
+    Note: documents.matched_actors_json carries denser co-occurrence data
+    but lacks political/economic categorization without LLM. raw_events
+    already has event_subtype categorized by adapter, so we use that as
+    the cleaner signal source.
     """
-    return {"status": "skeleton", "discovered": 0}
+    stats = {"scanned_events": 0, "co_occurrences_seen": 0,
+             "proposed_inserted": 0}
+
+    where_clause = "WHERE primary_actor_id IS NOT NULL"
+    params: list = []
+    if since:
+        where_clause += " AND ts >= ?"
+        params.append(since)
+
+    rows = con.execute(
+        "SELECT event_subtype, primary_actor_id FROM raw_events "
+        + where_clause,
+        params,
+    ).fetchall()
+    stats["scanned_events"] = len(rows)
+
+    # Per-actor: subtype histogram
+    actor_subtypes: dict[str, set[str]] = {}
+    for subtype, actor_id in rows:
+        if not actor_id:
+            continue
+        actor_subtypes.setdefault(actor_id, set()).add(subtype or "")
+
+    # Cross-sector candidate: actor with >= 2 distinct subtype categories
+    political_markers = ("candidate_", "election_", "governance_", "party_")
+    economic_markers = ("subsidiary_", "shareholder_", "executive_",
+                        "filing_", "earnings_")
+    for actor_id, subtypes in actor_subtypes.items():
+        has_political = any(
+            any(s.startswith(m) for m in political_markers) for s in subtypes
+        )
+        has_economic = any(
+            any(s.startswith(m) for m in economic_markers) for s in subtypes
+        )
+        if has_political and has_economic:
+            stats["co_occurrences_seen"] += 1
+            cid = f"person_canonical_discovery_{actor_id}"
+            cur = con.execute(
+                "INSERT OR IGNORE INTO actor_canonical_links "
+                "(canonical_id, canonical_type, name, political_actor_ids, "
+                " state, source, created_at, rationale) "
+                "VALUES (?, 'person', ?, ?, 'proposed', 'media_mention', "
+                "        ?, ?)",
+                (cid, actor_id,
+                 json.dumps([actor_id]), _now_iso(),
+                 f"co-occurrence: {sorted(subtypes)[:5]}"),
+            )
+            if cur.rowcount > 0:
+                stats["proposed_inserted"] += 1
+
+    con.commit()
+    return stats
 
 
 def dump_to_yaml(con: sqlite3.Connection,
                   output_path: Path | str | None = None) -> str:
-    """C5 (optional) — DB current state → yaml snapshot for audit/review."""
+    """DB current state → yaml snapshot for audit / human review.
+
+    Exports active person canonical entries with their political/economic
+    actor lists. Useful for periodic seed file refresh.
+    """
     if output_path is None:
         ts = datetime.now(timezone.utc).strftime("%Y%m%d")
         output_path = _DATA_DIR / f"cross_sector_canonical_snapshot_{ts}.yaml"
+    output_path = Path(output_path)
+
+    rows = con.execute(
+        "SELECT canonical_id, name, political_actor_ids, economic_actor_ids, "
+        "       confidence, source, rationale "
+        "FROM actor_canonical_links "
+        "WHERE canonical_type='person' AND state='active' "
+        "ORDER BY confidence DESC, name"
+    ).fetchall()
+
+    cases = []
+    for row in rows:
+        cases.append({
+            "canonical_id": row[0],
+            "name": row[1],
+            "political_actor_ids": json.loads(row[2]) if row[2] else [],
+            "economic_actor_ids": json.loads(row[3]) if row[3] else [],
+            "confidence": row[4],
+            "source": row[5],
+            "rationale": row[6],
+        })
+    output_path.write_text(
+        yaml.safe_dump({"cases": cases, "generated_at": _now_iso()},
+                       allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
     return str(output_path)
 
 

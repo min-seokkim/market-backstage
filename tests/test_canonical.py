@@ -284,3 +284,176 @@ def test_llm_cost_remaining_under_cap():
     assert remaining > 0
     # Sanity: cap is $5 per spec §4
     assert remaining <= 5.01
+
+
+# ---- C5: Tier B/C/D fuzzy match cross-sector --------------------------
+
+def _seed_actor_and_dart(con, actor_id, name, hanja, birthday,
+                          dart_actor_id, dart_corp, dart_position,
+                          dart_relate=None, dart_career=None):
+    """Helper — seed one NEC canonical + one DART executive for fuzzy match."""
+    con.execute(
+        "INSERT INTO actors_dyn "
+        "(id, name, type, hanja_name, birthday, proposal_source, "
+        " peak_political_tier, identity_json, status) "
+        "VALUES (?, ?, 'person', ?, ?, 'nec_canonical', 1, '{}', 'active')",
+        (actor_id, name, hanja, birthday),
+    )
+    con.execute(
+        "INSERT INTO dart_executive_state "
+        "(actor_id, rcept_no, bsns_year, reprt_code, corp_code, corp_name, "
+        " nm, birth_ym, ofcps, mxmm_shrholdr_relate, main_career) "
+        "VALUES (?, ?, 2024, '11013', '00126380', ?, ?, ?, ?, ?, ?)",
+        (
+            dart_actor_id, f"rcept_{dart_actor_id}",
+            dart_corp, name, birthday[:6],
+            dart_position, dart_relate, dart_career,
+        ),
+    )
+    con.commit()
+
+
+def test_fuzzy_match_tier_b_clean_match(con):
+    """Tier B — 1 NEC + 1 DART with same name + birth_ym → confidence 0.85."""
+    bootstrap_from_yaml(con)
+    _seed_actor_and_dart(
+        con,
+        actor_id="person_홍길동_test_19500101",
+        name="홍길동", hanja="洪吉童", birthday="19500101",
+        dart_actor_id="person_dart_홍길동_00126380_195001",
+        dart_corp="삼성전자", dart_position="대표이사",
+        dart_relate="본인", dart_career="삼성그룹 30년",
+    )
+    stats = fuzzy_match_cross_sector(con, llm_disambiguate=False)
+    assert stats["tier_b_match"] == 1
+    assert stats["tier_c_disambiguate"] == 0
+    assert stats["tier_d_llm"] == 0
+
+    # Verify canonical link created
+    row = con.execute(
+        "SELECT confidence, source, political_actor_ids, economic_actor_ids "
+        "FROM actor_canonical_links "
+        "WHERE canonical_id LIKE 'person_canonical_%_B'"
+    ).fetchone()
+    assert row is not None
+    assert row[0] == 0.85
+    assert row[1] == "fuzzy_match"
+    assert "person_홍길동_test_19500101" in row[2]
+
+
+def test_fuzzy_match_tier_c_score_via_owner_family(con):
+    """Tier C — 2 candidates same name+birth_ym; one has owner-family
+    signal → wins via _score_candidates_tier_c."""
+    bootstrap_from_yaml(con)
+    # Two DART candidates with same name + birth_ym but different signals
+    con.execute(
+        "INSERT INTO actors_dyn (id, name, type, hanja_name, birthday, "
+        " proposal_source, identity_json, status) "
+        "VALUES ('person_김철수_test_19600505', '김철수', 'person', '金哲洙', "
+        "        '19600505', 'nec_canonical', '{}', 'active')",
+    )
+    # Candidate 1: owner-family
+    con.execute(
+        "INSERT INTO dart_executive_state (actor_id, rcept_no, bsns_year, "
+        " reprt_code, corp_code, corp_name, nm, birth_ym, ofcps, "
+        " mxmm_shrholdr_relate, main_career) "
+        "VALUES ('person_dart_김철수_corp1_196005', 'r1', 2024, '11013', "
+        "        '00000001', '회사1', '김철수', '196005', '회장', "
+        "        '본인 친족', '재벌 가족')",
+    )
+    # Candidate 2: ordinary executive
+    con.execute(
+        "INSERT INTO dart_executive_state (actor_id, rcept_no, bsns_year, "
+        " reprt_code, corp_code, corp_name, nm, birth_ym, ofcps, "
+        " mxmm_shrholdr_relate, main_career) "
+        "VALUES ('person_dart_김철수_corp2_196005', 'r2', 2024, '11013', "
+        "        '00000002', '회사2', '김철수', '196005', '이사', "
+        "        '계열회사 임원', '회사 경력만')",
+    )
+    con.commit()
+    stats = fuzzy_match_cross_sector(con, llm_disambiguate=False)
+    assert stats["tier_c_disambiguate"] == 1
+    # Owner-family candidate should win
+    row = con.execute(
+        "SELECT economic_actor_ids FROM actor_canonical_links "
+        "WHERE canonical_id LIKE '%김철수%_C'"
+    ).fetchone()
+    assert row is not None
+    assert "corp1" in row[0]
+
+
+def test_fuzzy_match_no_candidates_no_match(con):
+    """NEC actor with no DART match → no_match increment, no row created."""
+    bootstrap_from_yaml(con)
+    con.execute(
+        "INSERT INTO actors_dyn (id, name, type, hanja_name, birthday, "
+        " proposal_source, identity_json, status) "
+        "VALUES ('person_loner_test_19000101', '로너', 'person', '無', "
+        "        '19000101', 'nec_canonical', '{}', 'active')",
+    )
+    con.commit()
+    stats = fuzzy_match_cross_sector(con, llm_disambiguate=False)
+    assert stats["no_match"] >= 1
+    assert stats["tier_b_match"] == 0
+
+
+def test_fuzzy_match_idempotent(con):
+    """Re-running fuzzy_match doesn't duplicate canonical rows."""
+    bootstrap_from_yaml(con)
+    _seed_actor_and_dart(
+        con,
+        actor_id="person_김유신_test_19000101",
+        name="김유신", hanja="金庾信", birthday="19000101",
+        dart_actor_id="person_dart_김유신_00000001_190001",
+        dart_corp="회사", dart_position="회장",
+    )
+    stats1 = fuzzy_match_cross_sector(con, llm_disambiguate=False)
+    n_links1 = con.execute(
+        "SELECT COUNT(*) FROM actor_canonical_links "
+        "WHERE canonical_id LIKE 'person_canonical_%'"
+    ).fetchone()[0]
+    stats2 = fuzzy_match_cross_sector(con, llm_disambiguate=False)
+    n_links2 = con.execute(
+        "SELECT COUNT(*) FROM actor_canonical_links "
+        "WHERE canonical_id LIKE 'person_canonical_%'"
+    ).fetchone()[0]
+    # Same number of links — re-verify via rev_history append, not duplicate
+    assert n_links1 == n_links2
+
+
+def test_score_candidates_tier_c_owner_family_wins():
+    """Pure scoring function — owner-family signal beats plain executive."""
+    from persistence.canonical import _score_candidates_tier_c
+    candidates = [
+        ("actor_a", "홍", "196005", "회사A", "이사", "회사 경력", "임원"),
+        ("actor_b", "홍", "196005", "회사B", "회장", "재벌 경력", "본인 친족"),
+    ]
+    best = _score_candidates_tier_c(candidates)
+    assert best["actor_id"] == "actor_b"
+    assert best["confidence"] >= 0.7
+
+
+def test_score_candidates_tier_c_political_career_signal():
+    """main_career에 정치 키워드 박혀있으면 cross-domain transition signal."""
+    from persistence.canonical import _score_candidates_tier_c
+    candidates = [
+        ("actor_a", "X", "196005", "회사A", "이사", "회사 경력만", "임원"),
+        ("actor_b", "X", "196005", "회사B", "이사",
+         "전 국회의원 · 전 장관 · 회사 경력", "임원"),
+    ]
+    best = _score_candidates_tier_c(candidates)
+    assert best["actor_id"] == "actor_b"
+    assert best["confidence"] > 0.5
+
+
+# ---- C5: discover_from_documents -----------------------------------------
+
+def test_discover_from_documents_skeleton_callable(con):
+    """No raw_events → 0 co-occurrences. Function returns valid dict."""
+    bootstrap_from_yaml(con)
+    from persistence import discover_from_documents
+    stats = discover_from_documents(con)
+    assert isinstance(stats, dict)
+    assert "scanned_events" in stats
+    assert "co_occurrences_seen" in stats
+    assert "proposed_inserted" in stats
