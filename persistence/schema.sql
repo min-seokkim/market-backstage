@@ -603,6 +603,11 @@ CREATE INDEX IF NOT EXISTS idx_predictions_horizon
 -- world.tick() 안의 actor.decide() loop이 *모든 actor decision*에 대해
 -- 이 테이블에 한 row씩 박는다. trade journal (decision_journal) 과 분리:
 -- 그 테이블은 Layer 2의 trade hypothesis 용으로 따로 유지된다.
+--
+-- v0.1: Affect 3D raw (fear/greed/urgency) 직접 박힘 + 2D derived
+-- (valence/arousal) 백워드-호환 그대로. PR-LEARN의 inverse Bayesian
+-- inference에서 fear·greed trajectory 별도 학습 가능 — 행동경제 원리
+-- (loss aversion · greed-driven over-confidence) 직접 측정.
 CREATE TABLE IF NOT EXISTS actor_decision_journal (
     entry_id        INTEGER PRIMARY KEY AUTOINCREMENT,
     actor_id        TEXT NOT NULL,
@@ -614,8 +619,16 @@ CREATE TABLE IF NOT EXISTS actor_decision_journal (
     magnitude       REAL,
     confidence      REAL
         CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
-    affect_valence  REAL,                                     -- (greed - fear)
-    affect_arousal  REAL,                                     -- urgency
+    -- Affect 2D derived (Russell 1980 valence-arousal 호환, backward-compat)
+    affect_valence  REAL,                                     -- = (greed - fear)
+    affect_arousal  REAL,                                     -- = urgency
+    -- Affect 3D raw (AffectiveState fear/greed/urgency, all ∈ [0,1])
+    affect_fear     REAL
+        CHECK (affect_fear IS NULL OR (affect_fear >= 0 AND affect_fear <= 1)),
+    affect_greed    REAL
+        CHECK (affect_greed IS NULL OR (affect_greed >= 0 AND affect_greed <= 1)),
+    affect_urgency  REAL
+        CHECK (affect_urgency IS NULL OR (affect_urgency >= 0 AND affect_urgency <= 1)),
     rationale       TEXT,
     metadata_json   TEXT
 );

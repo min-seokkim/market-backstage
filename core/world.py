@@ -160,13 +160,19 @@ class World:
             # an audit row. Without this, prosecutor mindset training data
             # evaporates and calibration loops die.
             #
-            # `valence = greed - fear` and `arousal = urgency` map the
-            # existing 5-D affect onto the 2-D circumplex used by the
-            # journal schema. Confidence isn't currently part of the
-            # decide() return tuple — leaving it None until LLMBackedActor
-            # surfaces it (PR5 will).
-            valence = a.affect.greed - a.affect.fear
-            arousal = a.affect.urgency
+            # v0.1: log Affect raw 3D (fear/greed/urgency) directly so
+            # PR-LEARN can train on the asymmetric fear↔greed dynamics
+            # that drive loss aversion / over-confidence. Also keep the
+            # 2D derived (valence = greed - fear, arousal = urgency) for
+            # downstream consumers that prefer Russell 1980's compact
+            # representation.
+            #
+            # uncertainty / morale aren't journaled here — uncertainty
+            # belongs on BayesianBelief (PR-LEARN scope), morale is a
+            # social-feedback channel rather than a decision driver.
+            af = a.affect
+            valence = af.greed - af.fear
+            arousal = af.urgency
             for ev in evs:
                 ev_targets = ev.targets if ev.targets else []
                 target_id = ev_targets[0] if ev_targets else None
@@ -193,6 +199,9 @@ class World:
                     confidence=None,
                     affect_valence=valence,
                     affect_arousal=arousal,
+                    affect_fear=af.fear,
+                    affect_greed=af.greed,
+                    affect_urgency=af.urgency,
                     rationale=rationale,
                 )
 

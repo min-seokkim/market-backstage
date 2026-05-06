@@ -125,6 +125,24 @@ def _apply_idempotent_migrations(con: sqlite3.Connection) -> None:
                 ON person_aliases(evidence_source);
         """)
 
+    # PR-CONTRACT-v0.1: Affect 3D raw columns on actor_decision_journal.
+    # Fresh DBs already have these via schema.sql CREATE TABLE; this ALTER
+    # path upgrades existing v0 DBs in place. SQLite ALTER TABLE can't add
+    # CHECK constraints, so application-side validation in
+    # insert_actor_decision_journal_entry enforces 0~1 range for upgraded
+    # DBs (CHECKs apply only to fresh CREATE).
+    if "actor_decision_journal" in tables:
+        adj_cols = {
+            r[1] for r in con.execute(
+                "PRAGMA table_info(actor_decision_journal)"
+            ).fetchall()
+        }
+        for col in ("affect_fear", "affect_greed", "affect_urgency"):
+            if col not in adj_cols:
+                con.execute(
+                    f"ALTER TABLE actor_decision_journal ADD COLUMN {col} REAL"
+                )
+
 
 # ---- Phase 3-5 sim tables --------------------------------------------------
 
@@ -560,33 +578,62 @@ def insert_actor_decision_journal_entry(
     target_id: str | None = None,
     magnitude: float | None = None,
     confidence: float | None = None,
+    # Affect 2D derived (Russell 1980 valence-arousal compatibility)
     affect_valence: float | None = None,
     affect_arousal: float | None = None,
+    # Affect 3D raw (AffectiveState — fear/greed/urgency ∈ [0,1])
+    affect_fear: float | None = None,
+    affect_greed: float | None = None,
+    affect_urgency: float | None = None,
     rationale: str | None = None,
     metadata: dict | None = None,
 ) -> int:
     """Persist a single actor decision audit row.
 
     Wired from `core/world.py:World.tick()` so that *every actor decision*
-    (rule-based or LLM-backed, hold or trade) leaves an audit trail. This
-    is the direction.md §5 non-negotiable: without this hook, prosecutor
-    mindset training data evaporates and calibration loops die.
+    (rule-based or LLM-backed, hold or trade) leaves an audit trail —
+    direction.md §5 non-negotiable.
+
+    Schema v0.1: stores Affect both as raw 3D (fear/greed/urgency, the
+    `AffectiveState` dataclass primitives) AND as 2D derived
+    (valence = greed - fear, arousal = urgency). Raw 3D unlocks
+    PR-LEARN's inverse Bayesian inference of fear vs. greed
+    trajectories — the asymmetry is the load-bearing signal in
+    behavioural finance (loss aversion, prospect theory, greed-driven
+    over-confidence). 2D stays for downstream consumers that prefer
+    Russell 1980's compact representation.
+
+    Note: `uncertainty` is NOT stored here — it lives on
+    `BayesianBelief`, not on `AffectiveState`. PR-LEARN routes
+    uncertainty through belief snapshots / actor_calibrations.
     """
     if confidence is not None:
         assert 0 <= confidence <= 1, \
             f"confidence must be 0~1, got {confidence}"
+    # Defensive 3D range check — schema-level CHECK only fires on fresh
+    # DBs (SQLite ALTER TABLE can't add CHECK), so app-side check covers
+    # upgraded DBs too.
+    for label, val in (("affect_fear", affect_fear),
+                       ("affect_greed", affect_greed),
+                       ("affect_urgency", affect_urgency)):
+        if val is not None:
+            assert 0 <= val <= 1, f"{label} must be 0~1, got {val}"
     cur = con.execute(
         "INSERT INTO actor_decision_journal "
         "(actor_id, tick, timestamp, event_type, event_subtype, "
         " target_id, magnitude, confidence, "
-        " affect_valence, affect_arousal, rationale, metadata_json) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " affect_valence, affect_arousal, "
+        " affect_fear, affect_greed, affect_urgency, "
+        " rationale, metadata_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             nfkc(actor_id), tick,
             datetime.now(timezone.utc).isoformat(),
             nfkc(event_type), nfkc(event_subtype),
             nfkc(target_id), magnitude, confidence,
-            affect_valence, affect_arousal, nfkc(rationale),
+            affect_valence, affect_arousal,
+            affect_fear, affect_greed, affect_urgency,
+            nfkc(rationale),
             json.dumps(nfkc_recursive(metadata), ensure_ascii=False)
                 if metadata else None,
         ),

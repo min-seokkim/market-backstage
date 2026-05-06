@@ -320,6 +320,67 @@ def test_synthesizer_uses_documents_v2_fields():
             == "조선일보")
 
 
+def test_actor_decision_journal_affect_3d_roundtrip(con):
+    """v0.1 amendment: Affect 3D raw (fear/greed/urgency) round-trips
+    through actor_decision_journal alongside the 2D derived columns."""
+    db.insert_actor_decision_journal_entry(
+        con, actor_id="t", tick=1, event_type="market_action",
+        affect_fear=0.3, affect_greed=0.5, affect_urgency=0.7,
+        affect_valence=0.2, affect_arousal=0.7,
+    )
+    con.commit()
+    row = con.execute(
+        "SELECT affect_fear, affect_greed, affect_urgency, "
+        "       affect_valence, affect_arousal "
+        "FROM actor_decision_journal LIMIT 1",
+    ).fetchone()
+    assert row[0] == pytest.approx(0.3)
+    assert row[1] == pytest.approx(0.5)
+    assert row[2] == pytest.approx(0.7)
+    assert row[3] == pytest.approx(0.2)        # = 0.5 - 0.3
+    assert row[4] == pytest.approx(0.7)        # = urgency
+
+
+def test_actor_decision_journal_affect_3d_range_validated(con):
+    """Out-of-range affect_* must be rejected by app-side check
+    (CHECK constraint only fires on fresh DBs)."""
+    with pytest.raises(AssertionError, match="affect_fear"):
+        db.insert_actor_decision_journal_entry(
+            con, actor_id="t", tick=1, event_type="x",
+            affect_fear=1.5,
+        )
+    with pytest.raises(AssertionError, match="affect_greed"):
+        db.insert_actor_decision_journal_entry(
+            con, actor_id="t", tick=1, event_type="x",
+            affect_greed=-0.1,
+        )
+
+
+def test_actor_decision_journal_affect_3d_via_world_tick():
+    """End-to-end: World.tick() hook populates affect_fear / greed / urgency
+    from AffectiveState, plus the derived 2D columns."""
+    world, con = _build_world_with_emitting_actor()
+    world.tick()
+    con.commit()
+    row = con.execute(
+        "SELECT affect_fear, affect_greed, affect_urgency, "
+        "       affect_valence, affect_arousal "
+        "FROM actor_decision_journal LIMIT 1",
+    ).fetchone()
+    assert row is not None
+    # All five columns populated from the AffectiveState passing through
+    # world.tick(). Default AffectiveState fields are 0.0 / 0.5, so we
+    # don't assert specific values — just non-NULL.
+    for i, label in enumerate(
+        ("fear", "greed", "urgency", "valence", "arousal")
+    ):
+        assert row[i] is not None, f"affect_{label} is NULL after tick"
+    # Derived 2D must be consistent with raw 3D
+    fear, greed, urgency, valence, arousal = row
+    assert valence == pytest.approx(greed - fear)
+    assert arousal == pytest.approx(urgency)
+
+
 def test_synthesizer_predictions_logged_at_creation():
     """End-to-end: World.tick() → synthesizer → insert_prediction with
     logged_at set, actual_outcome NULL."""

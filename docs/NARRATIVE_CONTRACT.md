@@ -87,10 +87,40 @@ arrives later that reads `decision_journal`.
 
 The hook fires once per emitted event, not per actor, so an actor that
 emits both a `market_action` and a `statement` in one tick produces two
-journal rows. `affect_valence` and `affect_arousal` are computed from
-the existing 5-D affect (`greed - fear` and `urgency` respectively) so
-the journal stays compact while preserving the most important
-dimensions for downstream calibration.
+journal rows.
+
+### Affect dimensions in actor_decision_journal (v0.1 amendment)
+
+The journal stores Affect both as **raw 3D** (`AffectiveState`'s
+fear / greed / urgency primitives) AND as **2D derived**
+(Russell 1980 valence-arousal):
+
+| column | source | range | role |
+|---|---|---|---|
+| `affect_fear` | `AffectiveState.fear` | 0~1 | raw — loss aversion driver |
+| `affect_greed` | `AffectiveState.greed` | 0~1 | raw — over-confidence driver |
+| `affect_urgency` | `AffectiveState.urgency` | 0~1 | raw — temporal pressure |
+| `affect_valence` | `greed - fear` | -1~1 | derived (backward-compat) |
+| `affect_arousal` | `urgency` | 0~1 | derived (backward-compat) |
+
+Why both? The 2D collapse loses the fear↔greed asymmetry — a person
+sized 0.7 on greed with 0.0 on fear and another sized 0.0 on greed
+with -0.7 fear share the same valence -0.7 but behave very differently
+under shocks. PR-LEARN's inverse Bayesian inference trains on the raw
+3D trajectories (loss aversion, prospect theory, greed-driven
+over-confidence) which is the load-bearing signal in behavioural
+finance. The 2D derived columns stay so existing downstream
+consumers don't break.
+
+`uncertainty` and `morale` are NOT journaled here — `uncertainty`
+belongs on `BayesianBelief` (its confidence dimension; PR-LEARN scope),
+and `morale` is a slow social-feedback channel rather than a
+per-decision trigger. Both are persisted on `actor_calibrations` /
+belief snapshots elsewhere.
+
+Schema enforces 0~1 range via `CHECK` on fresh DBs; existing v0 DBs
+are upgraded in place by `_apply_idempotent_migrations` (CHECKs can't
+be added via `ALTER TABLE`, so the helper validates at insert time).
 
 ## Prediction logging — hindsight bias guard
 

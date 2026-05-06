@@ -188,6 +188,27 @@ def check_07_nfkc_compliance(con):
     )
 
 
+def check_09_affect_3d_columns_present(con):
+    """v0.1: actor_decision_journal must carry affect_fear /
+    affect_greed / affect_urgency raw columns alongside the 2D derived
+    valence/arousal. Existing v0 DBs are upgraded in place via the
+    idempotent migration block in core_io._apply_idempotent_migrations.
+    """
+    cols = {
+        r[1] for r in con.execute(
+            "PRAGMA table_info(actor_decision_journal)"
+        ).fetchall()
+    }
+    expected = {"affect_fear", "affect_greed", "affect_urgency"}
+    missing = expected - cols
+    _record(
+        9, "actor_decision_journal Affect 3D raw columns",
+        not missing,
+        f"missing: {sorted(missing)}" if missing else
+        "all 3 raw columns present alongside 2D derived",
+    )
+
+
 def check_08_indexes_present(con):
     """Required indexes for query performance."""
     expected = {
@@ -232,6 +253,7 @@ def main() -> int:
         check_06_forward_compatibility(con)
         check_07_nfkc_compliance(con)
         check_08_indexes_present(con)
+        check_09_affect_3d_columns_present(con)
     finally:
         con.close()
     n_pass = sum(1 for c in CHECKS if c["passed"])
