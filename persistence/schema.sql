@@ -483,3 +483,146 @@ CREATE INDEX IF NOT EXISTS idx_documents_llm_priority
 -- person_aliases
 CREATE INDEX IF NOT EXISTS idx_person_aliases_canonical_evidence
     ON person_aliases(canonical_actor_id, evidence_source);
+
+-- ==== PR-CONTRACT-v0: Layer 1 산출물 contract =============================
+-- spec stack §3.1 NarrativeAssessment implementation. 5 dataclass의 DB 표현
+-- + actor_decision_journal (★ direction.md §5 non-negotiable drift fix).
+--
+-- Naming note: 기존 `decision_journal` 테이블은 trade hypothesis용 (Layer 2)
+-- 으로 schema.sql line ~111에 박혀있고 호출 site 0개. PR-CONTRACT-v0가
+-- 박는 actor decision audit trail은 별도 테이블 `actor_decision_journal`로
+-- 분리해 기존 trade journal 의도와 충돌 회피.
+
+CREATE TABLE IF NOT EXISTS assessments (
+    assessment_id            TEXT PRIMARY KEY,
+    timestamp                TEXT NOT NULL,                  -- ISO 생성 시점
+    assessment_window_start  TEXT NOT NULL,
+    assessment_window_end    TEXT NOT NULL,
+    methodology_version      TEXT NOT NULL,
+    confidence               REAL NOT NULL
+        CHECK (confidence >= 0 AND confidence <= 1),
+    market_narrative_json    TEXT NOT NULL,                  -- MarketNarrativeState
+    created_at               TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_assessments_timestamp
+    ON assessments(timestamp);
+CREATE INDEX IF NOT EXISTS idx_assessments_window
+    ON assessments(assessment_window_start, assessment_window_end);
+CREATE INDEX IF NOT EXISTS idx_assessments_methodology
+    ON assessments(methodology_version);
+
+
+CREATE TABLE IF NOT EXISTS assessment_targets (
+    target_id                       TEXT PRIMARY KEY,
+    assessment_id                   TEXT NOT NULL,
+    ticker                          TEXT NOT NULL,
+    direction                       INTEGER NOT NULL
+        CHECK (direction IN (-1, 1)),
+    rationale                       TEXT NOT NULL,
+    expected_horizon_days           INTEGER NOT NULL
+        CHECK (expected_horizon_days > 0),
+    sizing_pct_prior                REAL NOT NULL
+        CHECK (sizing_pct_prior >= 0 AND sizing_pct_prior <= 1),
+    actor_decision_likelihood_json  TEXT,                    -- dict[actor_id, float]
+    evidence_weights_json           TEXT,                    -- dict[actor_id, float]
+    associated_gap_ids_json         TEXT,                    -- list[str]
+    FOREIGN KEY (assessment_id) REFERENCES assessments(assessment_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_targets_assessment
+    ON assessment_targets(assessment_id);
+CREATE INDEX IF NOT EXISTS idx_targets_ticker
+    ON assessment_targets(ticker);
+CREATE INDEX IF NOT EXISTS idx_targets_direction
+    ON assessment_targets(direction);
+
+
+CREATE TABLE IF NOT EXISTS reality_gap_observations (
+    gap_id                   TEXT PRIMARY KEY,
+    assessment_id            TEXT NOT NULL,
+    gap_type                 TEXT NOT NULL
+        CHECK (gap_type IN ('quantitative', 'qualitative',
+                            'cross_source', 'leading_follower')),
+    description              TEXT NOT NULL,
+    quantitative_metric_json TEXT,
+    qualitative_evidence     TEXT,
+    severity                 REAL NOT NULL
+        CHECK (severity >= 0 AND severity <= 1),
+    affected_actors_json     TEXT NOT NULL,
+    is_future                INTEGER NOT NULL DEFAULT 0      -- 0=RealityGap, 1=FutureNarrativeGap
+        CHECK (is_future IN (0, 1)),
+    catalyst                 TEXT,                            -- FutureNarrativeGap만
+    catalyst_actor_ids_json  TEXT,
+    horizon_days             INTEGER,
+    direction                INTEGER
+        CHECK (direction IS NULL OR direction IN (-1, 1)),
+    confidence               REAL
+        CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
+    FOREIGN KEY (assessment_id) REFERENCES assessments(assessment_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_gaps_assessment
+    ON reality_gap_observations(assessment_id);
+CREATE INDEX IF NOT EXISTS idx_gaps_type
+    ON reality_gap_observations(gap_type);
+CREATE INDEX IF NOT EXISTS idx_gaps_severity
+    ON reality_gap_observations(severity);
+CREATE INDEX IF NOT EXISTS idx_gaps_future
+    ON reality_gap_observations(is_future);
+
+
+CREATE TABLE IF NOT EXISTS predictions (
+    prediction_id            TEXT PRIMARY KEY,
+    assessment_id            TEXT NOT NULL,
+    target_id                TEXT NOT NULL,
+    logged_at                TEXT NOT NULL,                  -- ★ 생성 시점 — hindsight bias 차단
+    expected_outcome_json    TEXT NOT NULL,
+    horizon_end              TEXT NOT NULL,                  -- deadline ISO
+    ci_low                   REAL,
+    ci_high                  REAL,
+    actual_outcome_json      TEXT,                            -- 사후
+    actual_logged_at         TEXT,                            -- 사후
+    brier_score              REAL,                            -- 사후
+    FOREIGN KEY (assessment_id) REFERENCES assessments(assessment_id),
+    FOREIGN KEY (target_id) REFERENCES assessment_targets(target_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_predictions_assessment
+    ON predictions(assessment_id);
+CREATE INDEX IF NOT EXISTS idx_predictions_target
+    ON predictions(target_id);
+CREATE INDEX IF NOT EXISTS idx_predictions_pending
+    ON predictions(actual_outcome_json)
+    WHERE actual_outcome_json IS NULL;
+CREATE INDEX IF NOT EXISTS idx_predictions_horizon
+    ON predictions(horizon_end);
+
+
+-- actor_decision_journal: ★ direction.md §5 non-negotiable drift fix.
+-- world.tick() 안의 actor.decide() loop이 *모든 actor decision*에 대해
+-- 이 테이블에 한 row씩 박는다. trade journal (decision_journal) 과 분리:
+-- 그 테이블은 Layer 2의 trade hypothesis 용으로 따로 유지된다.
+CREATE TABLE IF NOT EXISTS actor_decision_journal (
+    entry_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor_id        TEXT NOT NULL,
+    tick            INTEGER NOT NULL,
+    timestamp       TEXT NOT NULL,                            -- ISO 생성 시점
+    event_type      TEXT NOT NULL,                            -- e.kind (hold/buy/sell/...)
+    event_subtype   TEXT,                                     -- finer-grained
+    target_id       TEXT,                                     -- target asset / actor
+    magnitude       REAL,
+    confidence      REAL
+        CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
+    affect_valence  REAL,                                     -- (greed - fear)
+    affect_arousal  REAL,                                     -- urgency
+    rationale       TEXT,
+    metadata_json   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_actor_journal_actor
+    ON actor_decision_journal(actor_id);
+CREATE INDEX IF NOT EXISTS idx_actor_journal_tick
+    ON actor_decision_journal(tick);
+CREATE INDEX IF NOT EXISTS idx_actor_journal_event_type
+    ON actor_decision_journal(event_type);

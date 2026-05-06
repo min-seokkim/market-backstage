@@ -42,11 +42,16 @@ from core.psyche import AffectiveState
 
 
 class World:
-    def __init__(self, con: sqlite3.Connection):
+    def __init__(self, con: sqlite3.Connection,
+                 synthesizer_every_n_ticks: int | None = 4):
         self.con = con
         self.actors: dict[str, Actor] = {}
         self.edges: set[tuple[str, str]] = set()  # (a, b) with a < b
         self.clock: int = 0
+        # PR-CONTRACT-v0: synthesizer batch cadence. None disables periodic
+        # synthesis; the journal hook still fires on every tick.
+        self._synth_every_n_ticks = synthesizer_every_n_ticks
+        self._last_synth_iso: str | None = None
 
     # ---- topology ------------------------------------------------------------
 
@@ -150,6 +155,47 @@ class World:
                                 "interest_drift": drift},
                                raw=None)
 
+            # ★ PR-CONTRACT-v0: actor_decision_journal hook
+            # direction.md §5 non-negotiable — *every actor decision* leaves
+            # an audit row. Without this, prosecutor mindset training data
+            # evaporates and calibration loops die.
+            #
+            # `valence = greed - fear` and `arousal = urgency` map the
+            # existing 5-D affect onto the 2-D circumplex used by the
+            # journal schema. Confidence isn't currently part of the
+            # decide() return tuple — leaving it None until LLMBackedActor
+            # surfaces it (PR5 will).
+            valence = a.affect.greed - a.affect.fear
+            arousal = a.affect.urgency
+            for ev in evs:
+                ev_targets = ev.targets if ev.targets else []
+                target_id = ev_targets[0] if ev_targets else None
+                magnitude = (
+                    float(ev.payload.get("size"))
+                    if isinstance(ev.payload, dict)
+                       and ev.payload.get("size") is not None
+                    else None
+                )
+                rationale = (
+                    str(ev.payload.get("text") or ev.payload.get("rationale"))
+                    if isinstance(ev.payload, dict) else None
+                )
+                db.insert_actor_decision_journal_entry(
+                    self.con,
+                    actor_id=a.id, tick=t,
+                    event_type=ev.kind,
+                    event_subtype=(
+                        ev.payload.get("kind") if isinstance(ev.payload, dict)
+                        else None
+                    ),
+                    target_id=target_id,
+                    magnitude=magnitude,
+                    confidence=None,
+                    affect_valence=valence,
+                    affect_arousal=arousal,
+                    rationale=rationale,
+                )
+
         # 3. persist all outgoing events at tick t
         for e in outgoing:
             e.tick = t
@@ -166,10 +212,75 @@ class World:
         # 5. route to neighbors for next tick
         self._route(outgoing)
 
-        # 6. commit and advance
+        # 6. PR-CONTRACT-v0: optional periodic Stage 7 synthesizer call.
+        # Synthesizer reads Schema v2 inputs (raw_events / documents /
+        # edges_dyn) and emits a placeholder NarrativeAssessment that
+        # will be replaced by a real LLM extractor in PR5. Predictions
+        # are logged at *creation time* — that's the hindsight-bias guard
+        # demanded by spec §6.
+        if (self._synth_every_n_ticks
+                and t > 0
+                and t % self._synth_every_n_ticks == 0):
+            self._synthesize_and_log(t)
+
+        # 7. commit and advance
         self.con.commit()
         self.clock = t + 1
         return {"tick": t, "decisions": decisions, "market": mkt}
+
+    def _synthesize_and_log(self, t: int) -> None:
+        """Build a NarrativeAssessment and log predictions at creation time.
+
+        Defensive — synthesizer/persistence failures don't crash the tick;
+        they're logged as warnings so the simulation continues. Until
+        PR5's real extractor lands, the v0 synthesizer mostly emits empty
+        assessments (no high-impact events / no priority docs in DB),
+        which we skip.
+        """
+        from datetime import datetime, timezone
+        try:
+            from runtime.synthesizer import (
+                synthesize_minimal_assessment, derive_predictions,
+            )
+        except ImportError:
+            return  # synthesizer module not yet wired
+        window_start = self._last_synth_iso or "1970-01-01T00:00:00"
+        window_end = datetime.now(timezone.utc).isoformat()
+        try:
+            assessment = synthesize_minimal_assessment(
+                self.con, tick=t, window=(window_start, window_end),
+            )
+        except Exception as e:
+            # synthesizer failure is non-fatal at v0
+            import logging
+            logging.getLogger(__name__).warning(
+                "synthesizer failed at tick %d: %s", t, e,
+            )
+            return
+        if not assessment.targets and not assessment.reality_gaps:
+            self._last_synth_iso = window_end
+            return
+        db.insert_assessment(self.con, assessment)
+        # ★ Log predictions at creation time (hindsight-bias guard)
+        target_db_ids = [
+            row[0] for row in self.con.execute(
+                "SELECT target_id FROM assessment_targets "
+                "WHERE assessment_id = ? ORDER BY rowid",
+                (assessment.assessment_id,),
+            ).fetchall()
+        ]
+        for target, target_db_id in zip(assessment.targets, target_db_ids):
+            for pred in derive_predictions(target, t):
+                db.insert_prediction(
+                    self.con,
+                    assessment_id=assessment.assessment_id,
+                    target_id=target_db_id,
+                    expected_outcome=pred["expected_outcome"],
+                    horizon_end=pred["horizon_end"],
+                    ci_low=pred.get("ci_low"),
+                    ci_high=pred.get("ci_high"),
+                )
+        self._last_synth_iso = window_end
 
     def run(self, n: int) -> list[dict]:
         return [self.tick() for _ in range(n)]

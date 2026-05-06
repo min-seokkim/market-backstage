@@ -22,6 +22,15 @@ from .core_io import (
     insert_decision_journal_entry, update_decision_journal_outcome,
     fetch_decisions, fetch_market_pressure,
     summary,
+    # PR-CONTRACT-v0
+    insert_assessment, insert_target,
+    insert_reality_gap, insert_future_gap,
+    insert_prediction, update_prediction_outcome,
+    query_assessments_by_period, query_predictions_pending,
+    query_recent_high_priority_documents,
+    query_recent_high_impact_events,
+    query_actor_edge_strengths,
+    insert_actor_decision_journal_entry,
 )
 from .ingest_io import (
     insert_document, insert_variable, insert_raw_event,
