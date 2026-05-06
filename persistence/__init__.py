@@ -55,6 +55,16 @@ from .dyn_catalog_io import (
     # PR-Z2
     upsert_alias, resolve_canonical,
 )
+# PR4-CANONICAL — yaml seed + DB dynamic state
+from .canonical import (
+    bootstrap_from_yaml,
+    resolve_org_canonical,
+    update_trust_score,
+    llm_generate_chaebol_aliases,
+    fuzzy_match_cross_sector,
+    discover_from_documents,
+    llm_cost_remaining,
+)
 
 __all__ = [
     # core_io
@@ -85,4 +95,8 @@ __all__ = [
     "upsert_actor_dyn", "upsert_edge",
     # PR-Z2
     "upsert_alias", "resolve_canonical",
+    # PR4-CANONICAL
+    "bootstrap_from_yaml", "resolve_org_canonical", "update_trust_score",
+    "llm_generate_chaebol_aliases", "fuzzy_match_cross_sector",
+    "discover_from_documents", "llm_cost_remaining",
 ]
