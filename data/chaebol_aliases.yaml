@@ -1,0 +1,137 @@
+# PR4-CANONICAL — chaebol alias seed.
+#
+# yaml seed (state='active', source='yaml_seed') → chaebol_aliases_state.
+# 진단 결과 FTC `unityGrupNm`은 한글 음차 only (영문 form 0건). 영문은
+# 매체·사용자가 쓰는 form일 뿐 — 여기서 alias로 흡수되어 canonical_org_id로
+# resolve.
+#
+# Top 30 hand-curated. C2가 LLM call 박아 ~20개 추가 form proposed로 박음
+# (확인 후 active promote).
+#
+# Form: canonical_org_id → list of alias forms (NFKC normalized at insert time).
+#
+# Coverage 의도:
+#   - FTC 한글 form (DB의 current_corp_group과 일치)
+#   - 영문 (사람들·매체가 쓰는 form)
+#   - 한글 + "그룹"
+#   - 영문 + "Group" / "Inc" / "Holdings"
+#   - 한자 (있으면)
+#   - history transition form (e.g. SK ← 선경)
+
+aliases:
+
+  # ======================================================================
+  # tier 1: 5대
+  # ======================================================================
+
+  org_chaebol_samsung:
+    [삼성, 삼성그룹, Samsung, Samsung Group, 삼성주식회사, 三星]
+
+  org_chaebol_sk:
+    [에스케이, SK, 에스케이그룹, SK그룹, SK Group, SK Inc, SK Holdings,
+     주식회사 SK, 에스케이주식회사, 선경, 선경그룹]
+
+  org_chaebol_hyundai_motor:
+    [현대자동차, 현대자동차그룹, 현대차, 현대차그룹, 현대모터스,
+     Hyundai, Hyundai Motor, Hyundai Motor Group]
+
+  org_chaebol_lg:
+    [엘지, LG, 엘지그룹, LG그룹, LG Group, 주식회사 LG, 엘지주식회사,
+     럭키금성, 럭키금성그룹]
+
+  org_chaebol_lotte:
+    [롯데, 롯데그룹, Lotte, Lotte Group, ロッテ]
+
+  # ======================================================================
+  # tier 2: 6~30대
+  # ======================================================================
+
+  org_chaebol_posco:
+    [포스코, 포스코그룹, POSCO, POSCO Group, 포항제철]
+
+  org_chaebol_hanwha:
+    [한화, 한화그룹, Hanwha, Hanwha Group, 한국화약]
+
+  org_chaebol_gs:
+    [지에스, GS, 지에스그룹, GS그룹, GS Group, 주식회사 GS]
+
+  org_chaebol_hd_hyundai:
+    [HD현대, 에이치디현대, 에이치디현대그룹, HD Hyundai, 현대중공업그룹,
+     현대중공업홀딩스]
+
+  org_chaebol_shinsegae:
+    [신세계, 신세계그룹, Shinsegae, Shinsegae Group]
+
+  org_chaebol_cj:
+    [씨제이, CJ, 씨제이그룹, CJ그룹, CJ Group, 제일제당]
+
+  org_chaebol_hanjin:
+    [한진, 한진그룹, Hanjin, Hanjin Group, 한진칼]
+
+  org_chaebol_kakao:
+    [카카오, 카카오그룹, Kakao, Kakao Corp]
+
+  org_chaebol_ls:
+    [엘에스, LS, 엘에스그룹, LS그룹, LS Group, 엘지전선, LG전선]
+
+  org_chaebol_dl:
+    [DL, 디엘, 디엘그룹, DL그룹, DL Group, 대림, 대림그룹, 대림산업]
+
+  org_chaebol_junghung:
+    [중흥건설, 중흥건설그룹, 중흥, 중흥그룹]
+
+  org_chaebol_booyoung:
+    [부영, 부영그룹, Booyoung, Booyoung Group]
+
+  org_chaebol_mirae_asset:
+    [미래에셋, 미래에셋그룹, Mirae Asset, Mirae Asset Group]
+
+  org_chaebol_naver:
+    [네이버, 네이버그룹, Naver, Naver Corp, NHN]
+
+  org_chaebol_hyundai_dept:
+    [현대백화점, 현대백화점그룹]
+
+  org_chaebol_hmm:
+    [HMM, 에이치엠엠, 현대상선, Hyundai Merchant Marine]
+
+  org_chaebol_kt:
+    [케이티, KT, 케이티그룹, KT그룹, KT Group, 한국통신, 한국전기통신공사]
+
+  org_chaebol_oci:
+    [OCI, 오씨아이, 오씨아이그룹, OCI그룹, OCI Group, 동양제철화학]
+
+  org_chaebol_hyosung:
+    [효성, 효성그룹, Hyosung, Hyosung Group]
+
+  org_chaebol_youngpoong:
+    [영풍, 영풍그룹, Youngpoong, Youngpoong Group]
+
+  org_chaebol_harim:
+    [하림, 하림그룹, Harim, Harim Group]
+
+  org_chaebol_hoban:
+    [호반건설, 호반건설그룹, 호반, 호반그룹]
+
+  org_chaebol_kyobo:
+    [교보생명보험, 교보생명, 교보, 교보그룹, Kyobo Life]
+
+  org_chaebol_ktng:
+    [KT&G, 케이티앤지, 케이티앤지그룹, KT and G, 한국담배인삼공사, 한국전매공사]
+
+  org_chaebol_s_oil:
+    [에쓰-오일, 에쓰오일, S-Oil, S Oil, 쌍용정유]
+
+  org_chaebol_doosan:
+    [두산, 두산그룹, Doosan, Doosan Group]
+
+  org_chaebol_db:
+    [DB, 디비, 디비그룹, DB그룹, DB Group, 동부, 동부그룹]
+
+  org_chaebol_nonghyup:
+    [농협, 농협그룹, NH, NongHyup, 농업협동조합중앙회]
+
+  org_chaebol_bgf:
+    [BGF, 비지에프, 비지에프그룹, BGF그룹, BGF Group, 보광]
+
+# Tier 3~5는 C2 LLM auto-gen에서 proposed 박힘.

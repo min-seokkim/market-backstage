@@ -83,10 +83,14 @@ def test_no_signal_returns_none():
 # ---- Economic tier --------------------------------------------------------
 
 def test_top5_owner_is_tier_1():
+    # PR4-CANONICAL: chaebol_classification.yaml carries FTC actual form
+    # (한글 음차) only — 에스케이 / 엘지, not SK / LG. The English forms
+    # live in chaebol_aliases.yaml as alias entries. Passing "SK" here
+    # would correctly return tier 5 (unknown) post-PR4.
     assert compute_economic_tier(corp_position="owner", corp_group="삼성") == 1
     assert compute_economic_tier(corp_position="owner", corp_group="현대자동차") == 1
-    assert compute_economic_tier(corp_position="owner", corp_group="SK") == 1
-    assert compute_economic_tier(corp_position="owner", corp_group="LG") == 1
+    assert compute_economic_tier(corp_position="owner", corp_group="에스케이") == 1
+    assert compute_economic_tier(corp_position="owner", corp_group="엘지") == 1
     assert compute_economic_tier(corp_position="owner", corp_group="롯데") == 1
 
 

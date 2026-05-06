@@ -148,6 +148,20 @@ def _apply_idempotent_migrations(con: sqlite3.Connection) -> None:
                     f"ALTER TABLE actor_decision_journal ADD COLUMN {col} REAL"
                 )
 
+    # PR4-CANONICAL: actors_dyn.canonical_org_id column + partial index.
+    # Fresh DBs already carry the column via schema.sql CREATE TABLE.
+    # Existing 217k-actor DBs need ALTER ADD before the index can be
+    # built — index creation lives here (not in schema.sql) so that
+    # `executescript` doesn't fail on existing DBs where the column
+    # has not yet been added.
+    if "canonical_org_id" not in cols:
+        con.execute("ALTER TABLE actors_dyn ADD COLUMN canonical_org_id TEXT")
+    con.execute(
+        "CREATE INDEX IF NOT EXISTS idx_actors_dyn_canonical_org "
+        "ON actors_dyn(canonical_org_id) "
+        "WHERE canonical_org_id IS NOT NULL"
+    )
+
 
 # ---- Phase 3-5 sim tables --------------------------------------------------
 

@@ -263,7 +263,12 @@ CREATE TABLE IF NOT EXISTS actors_dyn (
     current_corp_position       TEXT,
     current_corp_group          TEXT,
     -- Tier history JSON: [{ts, political_tier, economic_tier, reason, source}, ...]
-    tier_history_json        TEXT
+    tier_history_json        TEXT,
+    -- ==== PR4-CANONICAL: cross-source canonical org reference ====
+    -- chaebol_owner / executive actors carry canonical_org_id resolved via
+    -- chaebol_aliases_state, so '에스케이' / 'SK' / 'ìì¤ì¼ì´' all
+    -- collapse onto org_chaebol_sk. Backfilled by PR4-CANONICAL retrofit.
+    canonical_org_id         TEXT
 );
 
 -- ==== PR-Z: actor-actor relationship edges (separate from causal_edges_dyn,
@@ -639,3 +644,224 @@ CREATE INDEX IF NOT EXISTS idx_actor_journal_tick
     ON actor_decision_journal(tick);
 CREATE INDEX IF NOT EXISTS idx_actor_journal_event_type
     ON actor_decision_journal(event_type);
+
+
+-- ============================================================================
+-- PR4-CANONICAL: yaml seed + DB dynamic state pattern
+-- ============================================================================
+-- Self-evolving model. yaml seed = git-versioned bootstrap anchor.
+-- DB dynamic state = real-time source of truth.
+-- State machine: proposed | active | deprecated | retired
+-- Trust accrual: verification_count >= 3 + confidence >= 0.7 → promote
+-- ============================================================================
+
+
+-- Cross-source canonical links. person + organization.
+-- Forward-compat: PR-LEARN의 power_share·dormant_power_score 학습 결과는
+-- learned_attributes_json에 박혀, schema migration 없이 evolution 가능.
+CREATE TABLE IF NOT EXISTS actor_canonical_links (
+    canonical_id            TEXT PRIMARY KEY,           -- e.g. 'person_canonical_정몽준_001' / 'org_chaebol_samsung'
+    canonical_type          TEXT NOT NULL CHECK (canonical_type IN ('person', 'organization')),
+    name                    TEXT NOT NULL,
+    political_actor_ids     TEXT,                        -- JSON list — NEC·ASSEMBLY linked actor IDs
+    economic_actor_ids      TEXT,                        -- JSON list — FTC·DART linked actor IDs
+    political_roles         TEXT,                        -- JSON list
+    political_parties       TEXT,                        -- JSON list
+    economic_organizations  TEXT,                        -- JSON list (org names or canonical_ids)
+    economic_roles          TEXT,                        -- JSON list
+    rationale               TEXT,
+    confidence              REAL CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
+    state                   TEXT NOT NULL DEFAULT 'proposed' CHECK (
+                              state IN ('proposed', 'active', 'deprecated', 'retired')
+                            ),
+    source                  TEXT NOT NULL,               -- 'yaml_seed' / 'fuzzy_match' / 'media_mention' /
+                                                          --   'learned' / 'hand_correction' / 'llm_disambiguate'
+    verification_count      INTEGER NOT NULL DEFAULT 0,
+    last_verified_at        TEXT,
+    created_at              TEXT NOT NULL DEFAULT (datetime('now')),
+    rev_history_json        TEXT,                        -- [{ts, change_type, source, rationale}, ...]
+    learned_attributes_json TEXT                         -- forward — PR-LEARN power_share / dormant 학습 결과
+);
+
+CREATE INDEX IF NOT EXISTS idx_canonical_name
+    ON actor_canonical_links(name);
+CREATE INDEX IF NOT EXISTS idx_canonical_type
+    ON actor_canonical_links(canonical_type);
+CREATE INDEX IF NOT EXISTS idx_canonical_state
+    ON actor_canonical_links(state);
+CREATE INDEX IF NOT EXISTS idx_canonical_source
+    ON actor_canonical_links(source);
+CREATE INDEX IF NOT EXISTS idx_canonical_confidence
+    ON actor_canonical_links(confidence DESC);
+
+
+-- chaebol alias dynamic state (org canonical resolution).
+-- 에스케이 / SK / ìì¤ì¼ì´ → org_chaebol_sk
+-- yaml_seed = git versioned bootstrap. llm_generated / discovered = self-evolving.
+CREATE TABLE IF NOT EXISTS chaebol_aliases_state (
+    alias               TEXT NOT NULL,                  -- input form (NFKC normalized)
+    canonical_org_id    TEXT NOT NULL,                  -- e.g. 'org_chaebol_samsung'
+    confidence          REAL,
+    state               TEXT NOT NULL DEFAULT 'proposed' CHECK (
+                          state IN ('proposed', 'active', 'deprecated')
+                        ),
+    source              TEXT NOT NULL,                  -- 'yaml_seed' / 'llm_generated' / 'discovered'
+    last_seen_at        TEXT,
+    seen_count          INTEGER NOT NULL DEFAULT 0,
+    rev_history_json    TEXT,
+    PRIMARY KEY (alias, canonical_org_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chaebol_alias
+    ON chaebol_aliases_state(alias);
+CREATE INDEX IF NOT EXISTS idx_chaebol_canonical
+    ON chaebol_aliases_state(canonical_org_id);
+CREATE INDEX IF NOT EXISTS idx_chaebol_state
+    ON chaebol_aliases_state(state);
+
+
+-- DART executive trajectory (시간별 snapshot).
+-- 매 보고서마다 ìì list 박힘. PRIMARY KEY (actor_id, rcept_no)로 시간 차원
+-- 보존. main_career → cross-domain transition raw. mxmm_shrholdr_relate →
+-- power_share prior signal (전문경영인 / owner family / 친족 etc).
+CREATE TABLE IF NOT EXISTS dart_executive_state (
+    actor_id              TEXT NOT NULL,                -- actors_dyn FK
+    rcept_no              TEXT NOT NULL,                -- 보고서 번호 (시간 anchor)
+    bsns_year             INTEGER,
+    reprt_code            TEXT,
+    corp_code             TEXT,
+    corp_name             TEXT,
+    nm                    TEXT,
+    sexdstn               TEXT,
+    birth_ym              TEXT,                          -- YYYYMM (Tier B matching key)
+    ofcps                 TEXT,                          -- 직책
+    rgist_exctv_at        TEXT,                          -- 사내 / 사외 / 감사
+    fte_at                TEXT,                          -- 상근 / 비상근
+    chrg_job              TEXT,                          -- 담당 업무
+    main_career           TEXT,                          -- cross-domain transition trajectory
+    mxmm_shrholdr_relate  TEXT,                          -- power_share prior signal
+    hffc_pd               TEXT,                          -- 재직 기간
+    tenure_end_on         TEXT,                          -- 임기 만료
+    stlm_dt               TEXT,                          -- 결산일
+    canonical_id          TEXT,                          -- actor_canonical_links FK
+    ingested_at           TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (actor_id, rcept_no)
+);
+
+CREATE INDEX IF NOT EXISTS idx_dart_exec_actor
+    ON dart_executive_state(actor_id);
+CREATE INDEX IF NOT EXISTS idx_dart_exec_corp
+    ON dart_executive_state(corp_code, bsns_year, reprt_code);
+CREATE INDEX IF NOT EXISTS idx_dart_exec_birth_ym
+    ON dart_executive_state(birth_ym, nm);    -- ★ Tier B matching path
+CREATE INDEX IF NOT EXISTS idx_dart_exec_relate
+    ON dart_executive_state(mxmm_shrholdr_relate);
+CREATE INDEX IF NOT EXISTS idx_dart_exec_canonical
+    ON dart_executive_state(canonical_id);
+
+
+-- NEC candidate trajectory (매 선거별 snapshot).
+-- 같은 person이 여러 선거에 출마하면 multiple rows. raw_record_json은
+-- ingest 원본 보존 — PR-LEARN trajectory 학습 raw input.
+CREATE TABLE IF NOT EXISTS nec_candidate_state (
+    actor_id          TEXT NOT NULL,                    -- person canonical (기존 _canonical_id pattern)
+    election_id       TEXT NOT NULL,                    -- 선거 식별 (sg_id + sg_typecode)
+    huboid            TEXT,                              -- NEC 후보 ID (선거별 다름)
+    sgg_name          TEXT,                              -- 선거구
+    party_name        TEXT,                              -- 정당
+    role              TEXT,                              -- 후보 / 당선 / 낙선 / 비례 / 사퇴
+    political_tier    INTEGER CHECK (political_tier IS NULL OR political_tier BETWEEN 1 AND 5),
+    raw_record_json   TEXT,                              -- NEC 원 record
+    canonical_id      TEXT,                              -- actor_canonical_links FK
+    ingested_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (actor_id, election_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nec_state_actor
+    ON nec_candidate_state(actor_id);
+CREATE INDEX IF NOT EXISTS idx_nec_state_election
+    ON nec_candidate_state(election_id);
+CREATE INDEX IF NOT EXISTS idx_nec_state_party
+    ON nec_candidate_state(party_name);
+CREATE INDEX IF NOT EXISTS idx_nec_state_canonical
+    ON nec_candidate_state(canonical_id);
+
+
+-- FTC executive · owner trajectory (매년 지정 snapshot).
+-- 매년 FTC 대규모기업집단 지정 시 ownership·executive structure가 바뀜.
+-- canonical_org_id로 yaml seed → DB dynamic state 연결.
+CREATE TABLE IF NOT EXISTS ftc_executive_state (
+    actor_id          TEXT NOT NULL,
+    designation_year  INTEGER NOT NULL,                  -- FTC 지정 연도
+    unity_grup_code   TEXT,                              -- FTC 그룹 코드
+    unity_grup_nm     TEXT,                              -- FTC 그룹명 (한글 음차)
+    canonical_org_id  TEXT,                              -- chaebol_aliases_state → org_chaebol_xxx
+    relation          TEXT,                              -- owner / executive / family
+    economic_tier     INTEGER CHECK (economic_tier IS NULL OR economic_tier BETWEEN 1 AND 5),
+    raw_record_json   TEXT,
+    canonical_id      TEXT,                              -- actor_canonical_links FK (cross-sector)
+    ingested_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (actor_id, designation_year)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ftc_state_actor
+    ON ftc_executive_state(actor_id);
+CREATE INDEX IF NOT EXISTS idx_ftc_state_year
+    ON ftc_executive_state(designation_year);
+CREATE INDEX IF NOT EXISTS idx_ftc_state_grup
+    ON ftc_executive_state(unity_grup_code);
+CREATE INDEX IF NOT EXISTS idx_ftc_state_canonical_org
+    ON ftc_executive_state(canonical_org_id);
+
+
+-- chaebol tier ranking trajectory (매년 변동).
+-- yaml seed = current year. ftc_designation = ingest 시 박힘.
+-- PR-LEARN이 시간 따라 ranking 변동 학습 input.
+CREATE TABLE IF NOT EXISTS chaebol_tier_state (
+    canonical_org_id  TEXT NOT NULL,
+    designation_year  INTEGER NOT NULL,
+    tier              INTEGER NOT NULL CHECK (tier BETWEEN 1 AND 5),
+    rank_in_year      INTEGER,                           -- FTC 자산총액 순위 (있으면)
+    source            TEXT NOT NULL,                     -- 'yaml_seed' / 'ftc_designation' / 'learned'
+    rev_history_json  TEXT,
+    PRIMARY KEY (canonical_org_id, designation_year)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chaebol_tier_org
+    ON chaebol_tier_state(canonical_org_id);
+CREATE INDEX IF NOT EXISTS idx_chaebol_tier_year
+    ON chaebol_tier_state(designation_year);
+
+
+-- ASSEMBLY member trajectory (매 대수 snapshot).
+-- C3에서 ALLNAMEMBER endpoint 검증 후 ingest 활성화. 현재는 schema만
+-- forward-compat 박힘 — 한자·생일 박혀있다면 NEC ↔ ASSEMBLY Tier A pair 가능.
+CREATE TABLE IF NOT EXISTS assembly_member_state (
+    actor_id        TEXT NOT NULL,
+    assembly_term   INTEGER NOT NULL,                    -- 대수 (e.g. 22)
+    naas_cd         TEXT,                                 -- ASSEMBLY API 식별 (있으면)
+    nm              TEXT,
+    party_name      TEXT,
+    elect_district  TEXT,                                 -- 선거구
+    committee       TEXT,                                 -- 상임위
+    role            TEXT,                                 -- 위원장 / 부위원장 / 간사 / 위원
+    raw_record_json TEXT,
+    canonical_id    TEXT,                                 -- actor_canonical_links FK
+    ingested_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (actor_id, assembly_term)
+);
+
+CREATE INDEX IF NOT EXISTS idx_assembly_state_actor
+    ON assembly_member_state(actor_id);
+CREATE INDEX IF NOT EXISTS idx_assembly_state_term
+    ON assembly_member_state(assembly_term);
+CREATE INDEX IF NOT EXISTS idx_assembly_state_party
+    ON assembly_member_state(party_name);
+CREATE INDEX IF NOT EXISTS idx_assembly_state_canonical
+    ON assembly_member_state(canonical_id);
+
+
+-- actors_dyn.canonical_org_id partial index — created in
+-- _apply_idempotent_migrations (must run AFTER the ALTER ADD COLUMN
+-- on existing v0 DBs; otherwise index creation fails on a non-existent
+-- column during executescript).

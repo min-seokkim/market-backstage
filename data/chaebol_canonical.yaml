@@ -1,0 +1,241 @@
+# PR4-CANONICAL — chaebol canonical organizations.
+#
+# yaml seed (git-versioned bootstrap anchor) → actor_canonical_links
+# (canonical_type='organization'). 진짜 DB의 FTC `unityGrupNm` form
+# (한글 음차) 기준. C1 진단 결과 영문 form (SK/LG/GS/CJ/KT/LS) 0건 —
+# 전부 한글 음차 (에스케이·엘지·지에스·씨제이·케이티·엘에스).
+#
+# Top 30 hand-curated. Rest는 C2 LLM auto-gen으로 proposed 박힘 후
+# trust accrual로 active promote.
+#
+# Form per entry:
+#   - canonical_org_id: stable internal id (English transliteration, snake_case)
+#     name_ko: FTC 한글 form (DB의 current_corp_group과 일치)
+#     tier: 1~5 (chaebol_classification.yaml과 일치)
+#     economic_tier: tier (compute_economic_tier 결과)
+#     representative_companies: 대표 계열사 list (cross-source matching anchor)
+#
+# C4 retrofit이 actors_dyn.canonical_org_id를 backfill하면, 한 group의
+# 모든 owner·executive actor가 동일 canonical_org_id로 collapse.
+
+groups:
+
+  # =========================================================================
+  # tier 1: 5대 재벌 (FTC 자산총액 1~5위)
+  # =========================================================================
+
+  - canonical_org_id: org_chaebol_samsung
+    name_ko: 삼성
+    tier: 1
+    economic_tier: 1
+    representative_companies:
+      [삼성전자, 삼성SDI, 삼성바이오로직스, 삼성생명, 삼성물산, 호텔신라]
+
+  - canonical_org_id: org_chaebol_sk
+    name_ko: 에스케이
+    tier: 1
+    economic_tier: 1
+    representative_companies:
+      [SK하이닉스, SK이노베이션, SK텔레콤, SK스퀘어]
+
+  - canonical_org_id: org_chaebol_hyundai_motor
+    name_ko: 현대자동차
+    tier: 1
+    economic_tier: 1
+    representative_companies:
+      [현대자동차, 기아, 현대모비스, 현대제철, 현대글로비스]
+
+  - canonical_org_id: org_chaebol_lg
+    name_ko: 엘지
+    tier: 1
+    economic_tier: 1
+    representative_companies:
+      [LG에너지솔루션, LG화학, LG전자, LG디스플레이]
+
+  - canonical_org_id: org_chaebol_lotte
+    name_ko: 롯데
+    tier: 1
+    economic_tier: 1
+    representative_companies:
+      [롯데지주, 롯데케미칼, 롯데쇼핑]
+
+  # =========================================================================
+  # tier 2: 6~30대
+  # =========================================================================
+
+  - canonical_org_id: org_chaebol_posco
+    name_ko: 포스코
+    tier: 2
+    economic_tier: 2
+    representative_companies: [포스코홀딩스, 포스코, 포스코퓨처엠]
+
+  - canonical_org_id: org_chaebol_hanwha
+    name_ko: 한화
+    tier: 2
+    economic_tier: 2
+    representative_companies: [한화, 한화에어로스페이스, 한화솔루션, 한화생명]
+
+  - canonical_org_id: org_chaebol_gs
+    name_ko: 지에스
+    tier: 2
+    economic_tier: 2
+    representative_companies: [GS, GS건설, GS칼텍스, GS리테일]
+
+  - canonical_org_id: org_chaebol_hd_hyundai
+    name_ko: HD현대
+    tier: 2
+    economic_tier: 2
+    representative_companies: [HD현대, HD한국조선해양, HD현대중공업]
+
+  - canonical_org_id: org_chaebol_shinsegae
+    name_ko: 신세계
+    tier: 2
+    economic_tier: 2
+    representative_companies: [신세계, 이마트, 신세계백화점]
+
+  - canonical_org_id: org_chaebol_cj
+    name_ko: 씨제이
+    tier: 2
+    economic_tier: 2
+    representative_companies: [CJ, CJ제일제당, CJ ENM, CJ대한통운]
+
+  - canonical_org_id: org_chaebol_hanjin
+    name_ko: 한진
+    tier: 2
+    economic_tier: 2
+    representative_companies: [한진칼, 대한항공, 한진]
+
+  - canonical_org_id: org_chaebol_kakao
+    name_ko: 카카오
+    tier: 2
+    economic_tier: 2
+    representative_companies: [카카오, 카카오뱅크, 카카오페이, 카카오엔터테인먼트]
+
+  - canonical_org_id: org_chaebol_ls
+    name_ko: 엘에스
+    tier: 2
+    economic_tier: 2
+    representative_companies: [LS, LS일렉트릭, LS MnM]
+
+  - canonical_org_id: org_chaebol_dl
+    name_ko: DL
+    tier: 2
+    economic_tier: 2
+    representative_companies: [DL이앤씨, DL, 대림산업]
+
+  - canonical_org_id: org_chaebol_junghung
+    name_ko: 중흥건설
+    tier: 2
+    economic_tier: 2
+    representative_companies: [중흥건설, 중흥토건]
+
+  - canonical_org_id: org_chaebol_booyoung
+    name_ko: 부영
+    tier: 2
+    economic_tier: 2
+    representative_companies: [부영, 부영주택]
+
+  - canonical_org_id: org_chaebol_mirae_asset
+    name_ko: 미래에셋
+    tier: 2
+    economic_tier: 2
+    representative_companies: [미래에셋증권, 미래에셋자산운용, 미래에셋생명]
+
+  - canonical_org_id: org_chaebol_naver
+    name_ko: 네이버
+    tier: 2
+    economic_tier: 2
+    representative_companies: [네이버, 네이버파이낸셜]
+
+  - canonical_org_id: org_chaebol_hyundai_dept
+    name_ko: 현대백화점
+    tier: 2
+    economic_tier: 2
+    representative_companies: [현대백화점, 현대그린푸드, 현대홈쇼핑]
+
+  - canonical_org_id: org_chaebol_hmm
+    name_ko: HMM
+    tier: 2
+    economic_tier: 2
+    representative_companies: [HMM]
+
+  - canonical_org_id: org_chaebol_kt
+    name_ko: 케이티
+    tier: 2
+    economic_tier: 2
+    representative_companies: [KT, KT스카이라이프]
+
+  - canonical_org_id: org_chaebol_oci
+    name_ko: OCI
+    tier: 2
+    economic_tier: 2
+    representative_companies: [OCI홀딩스, OCI]
+
+  - canonical_org_id: org_chaebol_hyosung
+    name_ko: 효성
+    tier: 2
+    economic_tier: 2
+    representative_companies: [효성, 효성중공업, 효성티앤씨]
+
+  - canonical_org_id: org_chaebol_youngpoong
+    name_ko: 영풍
+    tier: 2
+    economic_tier: 2
+    representative_companies: [영풍, 고려아연]
+
+  - canonical_org_id: org_chaebol_harim
+    name_ko: 하림
+    tier: 2
+    economic_tier: 2
+    representative_companies: [하림, 팬오션]
+
+  - canonical_org_id: org_chaebol_hoban
+    name_ko: 호반건설
+    tier: 2
+    economic_tier: 2
+    representative_companies: [호반건설, 호반산업]
+
+  - canonical_org_id: org_chaebol_kyobo
+    name_ko: 교보생명보험
+    tier: 2
+    economic_tier: 2
+    representative_companies: [교보생명보험, 교보증권]
+
+  - canonical_org_id: org_chaebol_ktng
+    name_ko: KT&G
+    tier: 2
+    economic_tier: 2
+    representative_companies: [KT&G, 한국인삼공사]
+
+  - canonical_org_id: org_chaebol_s_oil
+    name_ko: 에쓰-오일
+    tier: 2
+    economic_tier: 2
+    representative_companies: [에쓰오일]
+
+  - canonical_org_id: org_chaebol_doosan
+    name_ko: 두산
+    tier: 2
+    economic_tier: 2
+    representative_companies: [두산, 두산에너빌리티]
+
+  - canonical_org_id: org_chaebol_db
+    name_ko: DB
+    tier: 2
+    economic_tier: 2
+    representative_companies: [DB하이텍, DB금융투자, DB손해보험]
+
+  - canonical_org_id: org_chaebol_nonghyup
+    name_ko: 농협
+    tier: 2
+    economic_tier: 2
+    representative_companies: [농협중앙회, NH농협은행, NH투자증권]
+
+  - canonical_org_id: org_chaebol_bgf
+    name_ko: BGF
+    tier: 2
+    economic_tier: 2
+    representative_companies: [BGF리테일, BGF]
+
+# Tier 3~5: rest는 C2 LLM auto-gen으로 proposed 박힘. chaebol_classification.yaml의
+# 한글 form 기준으로 LLM이 canonical_id 생성·representative_companies 채움.

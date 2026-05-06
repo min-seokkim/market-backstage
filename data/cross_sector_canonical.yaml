@@ -1,0 +1,959 @@
+# data/cross_sector_canonical.yaml
+#
+# Hand-curated seed list — PR4-CANONICAL의 cross-sector matching anchor.
+#
+# 진짜 같은 사람의 정치 actor (NEC·ASSEMBLY) ↔ 경제 actor (FTC·DART) 매핑.
+# Birthday·hanja·진짜 actor ID는 PR4-CANONICAL이 NEC alias·DART executive에서
+# 자동 추출. 이 file은 "어떤 이름·context가 cross-sector인지" anchor만 박음.
+#
+# Form per entry:
+#   - name: 한글 이름
+#     political_roles: [의원, 장관, 대선후보, 청와대비서실장, 검사, 판사, ...]
+#     political_parties: [당명 list, optional]
+#     economic_organizations: [회사·재단·로펌·협회·학교 list]
+#     economic_roles: [owner_family, executive, board_member, foundation_chair, partner, professor]
+#     rationale: 한 줄 explanation
+#     confidence: high | medium | low
+#       high   = 다 알려진·verified cases
+#       medium = 알려진·일부 detail uncertain
+#       low    = less-known·LLM disambiguation 필요
+#
+# Source: Claude의 학습 데이터 (cutoff Jan 2026).
+# 추가/수정은 PR4-CANONICAL의 자동 generation pipeline에서.
+
+cases:
+
+  # =====================================================================
+  # Tier 1: 재벌 owner family + 정치 활동
+  # =====================================================================
+
+  - name: 정몽준
+    political_roles: [국회의원, 대선후보, 당대표]
+    political_parties: [무소속, 새누리당, 자유한국당]
+    economic_organizations: [현대중공업, HD현대, 대한축구협회, 아산정책연구원]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "현대그룹 정주영 6남, 7선 의원, 17·19대 대선 후보, 축구협회장"
+    confidence: high
+
+  - name: 정몽규
+    political_roles: [대한축구협회장]
+    economic_organizations: [현대산업개발, HDC, 대한축구협회, 대한체육회]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "현대 정주영 손자, HDC 회장, 축구협회장 + 정치 활동"
+    confidence: high
+
+  - name: 정의선
+    political_roles: [대한승마협회장, 자문]
+    economic_organizations: [현대자동차, 기아, 현대글로비스, 현대모비스]
+    economic_roles: [owner_family]
+    rationale: "현대자동차 그룹 회장 + 협회장·정·재계 자문"
+    confidence: high
+
+  - name: 이건희
+    political_roles: [평창올림픽유치위원회, 자문]
+    economic_organizations: [삼성전자, 삼성그룹, 삼성생명, 삼성복지재단]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "삼성그룹 회장, 평창올림픽 유치 + IOC 위원"
+    confidence: high
+
+  - name: 이재용
+    political_roles: [평창올림픽위원회, 자문]
+    economic_organizations: [삼성전자, 삼성생명, 삼성물산, 삼성복지재단]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "삼성전자 회장, 평창올림픽 부위원장"
+    confidence: high
+
+  - name: 이부진
+    political_roles: [평창올림픽위원회]
+    economic_organizations: [호텔신라, 삼성복지재단]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "호텔신라 사장, 삼성家"
+    confidence: high
+
+  - name: 최태원
+    political_roles: [대한상공회의소, 자문]
+    economic_organizations: [SK, SK텔레콤, SK하이닉스, SK이노베이션, 대한상공회의소]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "SK그룹 회장, 대한상공회의소 회장"
+    confidence: high
+
+  - name: 구광모
+    economic_organizations: [LG, LG전자, LG화학, LG에너지솔루션]
+    economic_roles: [owner_family]
+    rationale: "LG그룹 회장, 정·재계 자문"
+    confidence: high
+
+  - name: 신동빈
+    economic_organizations: [롯데, 롯데지주, 롯데케미칼, 롯데쇼핑]
+    economic_roles: [owner_family]
+    rationale: "롯데그룹 회장"
+    confidence: high
+
+  - name: 김승연
+    political_roles: [대한승마협회장, 자문]
+    economic_organizations: [한화, 한화그룹, 한화생명, 한화에어로스페이스, 대한승마협회]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "한화그룹 회장 + 승마협회장·정·재계 자문"
+    confidence: high
+
+  - name: 박용만
+    political_roles: [대한상공회의소회장]
+    economic_organizations: [두산, 두산인프라코어, 대한상공회의소]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "두산그룹 회장, 대한상공회의소 회장 (前)"
+    confidence: high
+
+  - name: 손경식
+    political_roles: [대한상공회의소, 한국경영자총협회회장]
+    economic_organizations: [CJ, CJ제일제당, 대한상공회의소, 한국경영자총협회]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "CJ 그룹 회장, 경총 회장"
+    confidence: high
+
+  - name: 조원태
+    economic_organizations: [한진, 대한항공, 한진칼]
+    economic_roles: [owner_family]
+    rationale: "한진그룹 회장"
+    confidence: high
+
+  - name: 박찬구
+    economic_organizations: [금호석유화학, 금호아시아나]
+    economic_roles: [owner_family]
+    rationale: "금호석유화학 회장, 금호아시아나家"
+    confidence: high
+
+  - name: 박삼구
+    political_roles: [한국경영자총협회회장]
+    economic_organizations: [금호아시아나, 한국경영자총협회]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "금호아시아나 회장 (前), 경총 회장 (前)"
+    confidence: high
+
+  - name: 조석래
+    political_roles: [전국경제인연합회회장]
+    economic_organizations: [효성, 효성그룹, 전국경제인연합회]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "효성그룹 회장 (前), 전경련 회장 (前)"
+    confidence: high
+
+  - name: 조현준
+    economic_organizations: [효성, 효성티앤씨, 효성중공업]
+    economic_roles: [owner_family]
+    rationale: "효성그룹 회장, 조석래 장남"
+    confidence: high
+
+  - name: 김재철
+    political_roles: [한국무역협회회장]
+    economic_organizations: [동원, 동원그룹, 한국무역협회]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "동원그룹 창업자, 무역협회 회장 (前)"
+    confidence: high
+
+  - name: 이수만
+    economic_organizations: [SM, SM엔터테인먼트, 에스엠컬쳐파트너스]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "SM 창업자, 한국 K-pop 산업 창시자, 정·재계 자문"
+    confidence: high
+
+  - name: 박정
+    political_roles: [국회의원]
+    political_parties: [더불어민주당]
+    economic_organizations: [박정학원, 사학재단]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "사학재단 + 의원"
+    confidence: medium
+
+  # =====================================================================
+  # Tier 2: 정치 + 사외이사·로펌·자문 cycling
+  # =====================================================================
+
+  - name: 박지원
+    political_roles: [국회의원, 청와대비서실장, 국정원장]
+    political_parties: [새천년민주당, 민주통합당, 무소속, 민생당]
+    economic_organizations: [DB, 두산, 하이브, 사외이사]
+    economic_roles: [board_member]
+    rationale: "DJ 정치 + 청와대비서실장 + 국정원장 + 사외이사"
+    confidence: high
+
+  - name: 안철수
+    political_roles: [국회의원, 대선후보, 당대표]
+    political_parties: [국민의당, 바른미래당, 국민의힘]
+    economic_organizations: [안랩, 안철수연구소]
+    economic_roles: [owner_family, executive]
+    rationale: "안랩 창업자 + 의사 + 의원·대선 후보"
+    confidence: high
+
+  - name: 정의화
+    political_roles: [국회의원, 국회의장, 자문]
+    political_parties: [한나라당, 새누리당]
+    economic_organizations: [의원·병원, 자문]
+    economic_roles: [executive]
+    rationale: "의사 + 6선 의원 + 19대 국회의장"
+    confidence: high
+
+  - name: 김기춘
+    political_roles: [검사, 법무부장관, 청와대비서실장, 국회의원]
+    political_parties: [한나라당]
+    economic_organizations: [법무법인, 사외이사]
+    economic_roles: [partner, board_member]
+    rationale: "검사 → 법무부장관 → 의원 → 청와대비서실장 → 로펌·사외이사"
+    confidence: high
+
+  - name: 김상조
+    political_roles: [공정거래위원장, 청와대정책실장]
+    political_parties: [더불어민주당]
+    economic_organizations: [한성대, 경제개혁연대, 사외이사]
+    economic_roles: [professor, foundation_chair, board_member]
+    rationale: "학계 + 시민단체 + 공정위원장 + 청와대정책실장"
+    confidence: high
+
+  - name: 황교안
+    political_roles: [검사, 법무부장관, 국무총리, 대선후보, 당대표]
+    political_parties: [자유한국당, 미래통합당]
+    economic_organizations: [법무법인, 사외이사]
+    economic_roles: [partner, board_member]
+    rationale: "검사 → 법무부장관 → 국무총리 → 대선후보 → 로펌"
+    confidence: high
+
+  - name: 유시민
+    political_roles: [국회의원, 보건복지부장관, 작가, 평론가]
+    political_parties: [열린우리당, 통합진보당, 무소속]
+    economic_organizations: [노무현재단, 출판사, 방송 평론]
+    economic_roles: [foundation_chair, professor]
+    rationale: "의원 → 복지부장관 → 작가·재단 이사장·평론"
+    confidence: high
+
+  - name: 이회창
+    political_roles: [대법관, 감사원장, 국무총리, 대선후보, 당대표]
+    political_parties: [신한국당, 한나라당, 자유선진당]
+    economic_organizations: [법무법인, 사외이사]
+    economic_roles: [partner, board_member]
+    rationale: "대법관 → 총리 → 3번 대선후보 → 당대표 → 로펌"
+    confidence: high
+
+  - name: 진념
+    political_roles: [경제기획원, 부총리]
+    economic_organizations: [학계, 사외이사, 자문]
+    economic_roles: [professor, board_member]
+    rationale: "경제기획원 → 부총리 → 학계·사외이사·자문"
+    confidence: high
+
+  - name: 강경식
+    political_roles: [경제기획원, 부총리]
+    economic_organizations: [학계, 사외이사, 자문]
+    economic_roles: [professor, board_member]
+    rationale: "경제기획원 → 부총리 → 학계·자문"
+    confidence: high
+
+  - name: 이헌재
+    political_roles: [경제기획원, 부총리, 금감원장]
+    economic_organizations: [학계, 사외이사, 자문]
+    economic_roles: [professor, board_member]
+    rationale: "경제기획원 → 금감원장 → 부총리 → 사외이사·자문"
+    confidence: high
+
+  - name: 홍정욱
+    political_roles: [국회의원]
+    political_parties: [한나라당]
+    economic_organizations: [헤럴드미디어, 헤럴드]
+    economic_roles: [owner_family, executive]
+    rationale: "헤럴드미디어 회장 + 18대 의원"
+    confidence: high
+
+  - name: 한덕수
+    political_roles: [국무총리, 외교통상부장관, 경제부총리, 대사]
+    economic_organizations: [학계, 사외이사, 자문]
+    economic_roles: [professor, board_member]
+    rationale: "경제부총리 → 총리 → 사외이사·자문"
+    confidence: high
+
+  - name: 김부겸
+    political_roles: [국회의원, 행정안전부장관, 국무총리]
+    political_parties: [더불어민주당]
+    economic_organizations: [지방자치, 시민단체, 사외이사]
+    economic_roles: [foundation_chair, board_member]
+    rationale: "의원 → 행안부장관 → 총리"
+    confidence: high
+
+  - name: 이낙연
+    political_roles: [국회의원, 도지사, 국무총리, 당대표, 대선후보]
+    political_parties: [더불어민주당]
+    economic_organizations: [언론, 자문]
+    economic_roles: [executive, board_member]
+    rationale: "기자 → 의원 → 도지사 → 총리 → 당대표 → 대선 후보"
+    confidence: high
+
+  - name: 정세균
+    political_roles: [국회의원, 국회의장, 산업자원부장관, 국무총리, 당대표]
+    political_parties: [열린우리당, 새정치민주연합, 더불어민주당]
+    economic_organizations: [쌍용그룹, 사외이사, 자문]
+    economic_roles: [executive, board_member]
+    rationale: "쌍용그룹 임원 → 의원 → 산업부장관 → 국회의장 → 총리 → 당대표"
+    confidence: high
+
+  - name: 김경준
+    political_roles: [BBK 사건]
+    economic_organizations: [BBK, 옵셔널벤처스]
+    economic_roles: [owner_family]
+    rationale: "BBK 사건 정치적 파장, 정·재계 cross"
+    confidence: medium
+
+  - name: 김황식
+    political_roles: [대법관, 감사원장, 국무총리]
+    economic_organizations: [법무법인, 사외이사]
+    economic_roles: [partner, board_member]
+    rationale: "대법관 → 감사원장 → 총리 → 로펌"
+    confidence: high
+
+  - name: 정홍원
+    political_roles: [검사, 법무부장관, 국무총리]
+    economic_organizations: [법무법인, 자문]
+    economic_roles: [partner]
+    rationale: "검사 → 법무부장관 → 총리 → 로펌"
+    confidence: high
+
+  - name: 한승수
+    political_roles: [국회의원, 외교통상부장관, 국무총리, UN총회의장]
+    economic_organizations: [학계, 사외이사, 외교]
+    economic_roles: [professor, board_member]
+    rationale: "외교부장관 → 총리 → UN총회의장 → 학계·사외이사"
+    confidence: high
+
+  - name: 한명숙
+    political_roles: [국회의원, 여성가족부장관, 국무총리, 당대표]
+    political_parties: [열린우리당, 민주당, 새정치민주연합]
+    economic_organizations: [시민운동, 학계, 자문]
+    economic_roles: [foundation_chair, professor]
+    rationale: "여성운동 → 의원 → 여성가족부 → 총리 → 당대표"
+    confidence: high
+
+  - name: 고건
+    political_roles: [서울시장, 국무총리, 대통령권한대행]
+    economic_organizations: [학계, 자문]
+    economic_roles: [professor]
+    rationale: "서울시장 → 총리 → 대통령권한대행 → 학계·자문"
+    confidence: high
+
+  - name: 윤증현
+    political_roles: [재정경제부, 금융위원장, 기획재정부장관]
+    economic_organizations: [학계, 사외이사, 금융자문]
+    economic_roles: [professor, board_member]
+    rationale: "재경부 → 금융위원장 → 기재부장관 → 사외이사"
+    confidence: high
+
+  - name: 강만수
+    political_roles: [재정경제부, 기획재정부장관, 산은금융지주회장]
+    economic_organizations: [산업은행, 사외이사]
+    economic_roles: [executive, board_member]
+    rationale: "재경부 → 기재부장관 → 산은금융지주 회장"
+    confidence: high
+
+  - name: 박재완
+    political_roles: [국회의원, 국정원, 기획재정부장관]
+    political_parties: [한나라당, 새누리당]
+    economic_organizations: [학계, 사외이사]
+    economic_roles: [professor, board_member]
+    rationale: "의원 → 기재부장관 → 사외이사·학계"
+    confidence: high
+
+  - name: 임종룡
+    political_roles: [재정경제부, 금융위원장, NH농협금융지주회장]
+    economic_organizations: [NH농협금융지주, 우리금융지주]
+    economic_roles: [executive]
+    rationale: "재경부 → 금융위원장 → NH농협금융지주 회장 → 우리금융지주 회장"
+    confidence: high
+
+  - name: 김석동
+    political_roles: [재정경제부, 금융위원장]
+    economic_organizations: [사외이사, 자문]
+    economic_roles: [board_member]
+    rationale: "재경부 → 금융위원장 → 사외이사·자문"
+    confidence: high
+
+  - name: 윤진식
+    political_roles: [국회의원, 청와대정책실장, 산업자원부장관]
+    political_parties: [한나라당, 새누리당]
+    economic_organizations: [사외이사, 자문]
+    economic_roles: [board_member]
+    rationale: "산자부장관 → 청와대정책실장 → 의원 → 사외이사"
+    confidence: high
+
+  - name: 변양호
+    political_roles: [재정경제부]
+    economic_organizations: [BSF컨설팅, 사외이사]
+    economic_roles: [partner, board_member]
+    rationale: "재경부 → 사모펀드·자문"
+    confidence: medium
+
+  - name: 박병석
+    political_roles: [국회의원, 국회부의장, 국회의장]
+    political_parties: [새정치국민회의, 민주당, 더불어민주당]
+    economic_organizations: [언론, 학계]
+    economic_roles: [executive, professor]
+    rationale: "기자 → 6선 의원 → 21대 국회의장"
+    confidence: high
+
+  - name: 김진표
+    political_roles: [국회의원, 재정경제부장관, 교육부장관, 국회의장]
+    political_parties: [열린우리당, 민주당, 더불어민주당]
+    economic_organizations: [학계, 자문]
+    economic_roles: [professor]
+    rationale: "재경부장관 → 교육부장관 → 의원 → 21대 국회의장"
+    confidence: high
+
+  - name: 강금실
+    political_roles: [법무부장관, 서울시장후보]
+    economic_organizations: [법무법인지평, 변호사]
+    economic_roles: [partner]
+    rationale: "변호사 → 법무부장관 → 서울시장 후보 → 로펌"
+    confidence: high
+
+  - name: 추미애
+    political_roles: [국회의원, 법무부장관, 당대표]
+    political_parties: [새정치국민회의, 민주당, 더불어민주당]
+    economic_organizations: [법조, 학계]
+    economic_roles: [partner, professor]
+    rationale: "판사 → 의원 → 당대표 → 법무부장관"
+    confidence: high
+
+  - name: 한동훈
+    political_roles: [검사, 법무부장관, 당대표]
+    political_parties: [국민의힘]
+    economic_organizations: [법조]
+    economic_roles: [partner]
+    rationale: "검사 → 법무부장관 → 당대표"
+    confidence: high
+
+  - name: 윤석열
+    political_roles: [검사, 검찰총장, 대통령, 대선후보]
+    political_parties: [국민의힘]
+    economic_organizations: [법무법인, 사외이사]
+    economic_roles: [partner]
+    rationale: "검사 → 검찰총장 → 19대 대통령"
+    confidence: high
+
+  - name: 송영길
+    political_roles: [국회의원, 인천시장, 당대표]
+    political_parties: [새정치국민회의, 민주당, 더불어민주당]
+    economic_organizations: [법무법인, 학계]
+    economic_roles: [partner, professor]
+    rationale: "변호사 → 의원 → 인천시장 → 당대표"
+    confidence: high
+
+  - name: 박원순
+    political_roles: [서울시장]
+    political_parties: [더불어민주당]
+    economic_organizations: [참여연대, 아름다운가게, 시민운동]
+    economic_roles: [foundation_chair]
+    rationale: "변호사 → 참여연대·시민운동 → 서울시장"
+    confidence: high
+
+  - name: 안희정
+    political_roles: [국회의원, 충남도지사, 대선예비후보]
+    political_parties: [열린우리당, 민주당, 더불어민주당]
+    economic_organizations: [정치 자문]
+    economic_roles: [foundation_chair]
+    rationale: "정치인 → 충남도지사"
+    confidence: high
+
+  - name: 박영선
+    political_roles: [국회의원, 중소벤처기업부장관, 서울시장후보]
+    political_parties: [민주당, 더불어민주당]
+    economic_organizations: [언론, 사외이사]
+    economic_roles: [executive, board_member]
+    rationale: "기자 → 의원 → 중기부장관 → 서울시장 후보"
+    confidence: high
+
+  - name: 박형준
+    political_roles: [국회의원, 청와대정무수석, 부산시장]
+    political_parties: [한나라당, 새누리당, 국민의힘]
+    economic_organizations: [학계, 동아대]
+    economic_roles: [professor]
+    rationale: "교수 → 의원 → 청와대 → 부산시장"
+    confidence: high
+
+  - name: 이주영
+    political_roles: [국회의원, 해양수산부장관, 청와대정무수석, 국회부의장]
+    political_parties: [한나라당, 새누리당]
+    economic_organizations: [법무법인, 사외이사]
+    economic_roles: [partner, board_member]
+    rationale: "변호사 → 5선 의원 → 해수부장관 → 국회부의장"
+    confidence: high
+
+  - name: 김무성
+    political_roles: [국회의원, 당대표]
+    political_parties: [한나라당, 새누리당, 국민의힘]
+    economic_organizations: [해운, 사외이사]
+    economic_roles: [executive, board_member]
+    rationale: "해운회사 임원 → 6선 의원 → 당대표"
+    confidence: high
+
+  - name: 김기현
+    political_roles: [국회의원, 울산시장, 당대표]
+    political_parties: [한나라당, 새누리당, 국민의힘]
+    economic_organizations: [법조]
+    economic_roles: [partner]
+    rationale: "변호사 → 의원 → 울산시장 → 당대표"
+    confidence: high
+
+  - name: 권영세
+    political_roles: [국회의원, 청와대비서실, 통일부장관, 주중대사]
+    political_parties: [한나라당, 새누리당, 국민의힘]
+    economic_organizations: [법무법인]
+    economic_roles: [partner]
+    rationale: "검사 → 의원 → 통일부장관 → 주중대사"
+    confidence: high
+
+  - name: 이상민
+    political_roles: [국회의원, 행정안전부장관]
+    political_parties: [더불어민주당, 국민의힘]
+    economic_organizations: [법무법인, 사외이사]
+    economic_roles: [partner, board_member]
+    rationale: "변호사 → 5선 의원 → 행안부장관"
+    confidence: high
+
+  - name: 정몽구
+    economic_organizations: [현대자동차, 현대모비스, 현대제철, 현대글로비스]
+    economic_roles: [owner_family]
+    rationale: "현대자동차 그룹 명예회장, 정주영家"
+    confidence: high
+
+  # =====================================================================
+  # Tier 3: 학자·관료·자문 cycling
+  # =====================================================================
+
+  - name: 이주열
+    political_roles: [한국은행총재, 부총재]
+    economic_organizations: [한국은행, KDI, 학계, 자문]
+    economic_roles: [executive, professor]
+    rationale: "한은 부총재 → 한은 총재 → 학계·자문"
+    confidence: high
+
+  - name: 이창용
+    political_roles: [한국은행총재]
+    economic_organizations: [IMF, 서울대, 학계]
+    economic_roles: [executive, professor]
+    rationale: "서울대 교수 → IMF → 한은 총재"
+    confidence: high
+
+  - name: 김중수
+    political_roles: [한국은행총재, 청와대경제수석]
+    economic_organizations: [한국은행, KDI, 학계]
+    economic_roles: [executive, professor]
+    rationale: "KDI → 청와대경제수석 → 한은 총재 → 학계"
+    confidence: high
+
+  - name: 송영길
+    political_roles: [국회의원, 인천시장, 당대표]
+    political_parties: [더불어민주당]
+    economic_organizations: [법무법인, 학계]
+    economic_roles: [partner, professor]
+    rationale: "변호사 → 의원 → 인천시장 → 당대표 → 학계"
+    confidence: high
+
+  - name: 안경환
+    political_roles: [국가인권위원장, 법무부장관후보]
+    economic_organizations: [서울대, 학계, 사외이사]
+    economic_roles: [professor, board_member]
+    rationale: "서울대 법대 교수 → 인권위원장 → 학계·자문"
+    confidence: high
+
+  - name: 김상희
+    political_roles: [국회의원, 국회부의장]
+    political_parties: [더불어민주당]
+    economic_organizations: [여성단체, 학계, 사외이사]
+    economic_roles: [foundation_chair]
+    rationale: "여성운동 → 4선 의원 → 국회부의장"
+    confidence: high
+
+  - name: 정세현
+    political_roles: [통일부장관]
+    economic_organizations: [학계, 자문]
+    economic_roles: [professor]
+    rationale: "통일부장관 → 학계·자문"
+    confidence: medium
+
+  - name: 송민순
+    political_roles: [외교통상부장관, 청와대안보실장, 국회의원]
+    political_parties: [무소속, 통합민주당]
+    economic_organizations: [학계, 자문]
+    economic_roles: [professor]
+    rationale: "외교부장관 → 청와대 → 의원 → 학계"
+    confidence: high
+
+  - name: 이용훈
+    political_roles: [대법원장, 대법관]
+    economic_organizations: [법무법인, 학계]
+    economic_roles: [partner, professor]
+    rationale: "대법관 → 대법원장 → 학계"
+    confidence: high
+
+  - name: 이종찬
+    political_roles: [국회의원, 국정원장]
+    political_parties: [신한국당]
+    economic_organizations: [정치 자문, 사외이사]
+    economic_roles: [board_member]
+    rationale: "DJ 정권 국정원장, 정·재계 자문"
+    confidence: medium
+
+  - name: 박관용
+    political_roles: [국회의원, 국회의장]
+    political_parties: [통일민주당, 한나라당]
+    economic_organizations: [학계, 자문]
+    economic_roles: [professor]
+    rationale: "9선 의원 → 16대 국회의장"
+    confidence: high
+
+  - name: 김용
+    political_roles: [세계은행총재, UN]
+    economic_organizations: [하버드, 다트머스, 학계]
+    economic_roles: [executive, professor]
+    rationale: "한인계 미국인, 다트머스 총장 → 세계은행 총재"
+    confidence: high
+
+  - name: 박지원
+    political_roles: [의원, 청와대비서실장, 국정원장]
+    political_parties: [새천년민주당]
+    economic_organizations: [DB, 사외이사]
+    economic_roles: [board_member]
+    rationale: "DJ 정치 + 청와대비서실장 + 국정원장 + 사외이사 (중복 항목 — 첫 entry 참조)"
+    confidence: high
+
+  - name: 이종걸
+    political_roles: [국회의원, 원내대표]
+    political_parties: [열린우리당, 민주당, 더불어민주당]
+    economic_organizations: [법무법인]
+    economic_roles: [partner]
+    rationale: "변호사 → 5선 의원 → 원내대표"
+    confidence: high
+
+  - name: 신경식
+    political_roles: [국회의원, 국회의장직무대리]
+    political_parties: [신한국당, 한나라당]
+    economic_organizations: [언론, 자문]
+    economic_roles: [executive]
+    rationale: "5선 의원, 신한국당·한나라당"
+    confidence: medium
+
+  - name: 이만섭
+    political_roles: [국회의원, 국회의장]
+    political_parties: [공화당, 통일민주당, 새정치국민회의]
+    economic_organizations: [언론, 자문]
+    economic_roles: [executive]
+    rationale: "8선 의원 → 14·16대 국회의장"
+    confidence: high
+
+  - name: 이주영
+    political_roles: [국회의원, 해수부장관, 국회부의장]
+    political_parties: [한나라당, 새누리당]
+    economic_organizations: [법무법인]
+    economic_roles: [partner]
+    rationale: "변호사 → 5선 의원 → 해수부장관 → 국회부의장 (중복 — 첫 entry 참조)"
+    confidence: high
+
+  - name: 임혁백
+    political_roles: [정치 자문]
+    economic_organizations: [고려대, 학계, 자문]
+    economic_roles: [professor]
+    rationale: "고려대 정치학 교수, 정치·정책 자문"
+    confidence: medium
+
+  # =====================================================================
+  # Tier 4: 추가 cross-sector cases (2010s~2020s)
+  # =====================================================================
+
+  - name: 김홍걸
+    political_roles: [국회의원]
+    political_parties: [더불어민주당, 무소속]
+    economic_organizations: [DJ平화센터, UN, 자문]
+    economic_roles: [foundation_chair]
+    rationale: "DJ 3남, 국제기구·재단 + 의원"
+    confidence: high
+
+  - name: 김두관
+    political_roles: [국회의원, 행안부장관, 경남도지사]
+    political_parties: [열린우리당, 민주당, 더불어민주당]
+    economic_organizations: [지방자치, 자문]
+    economic_roles: [foundation_chair]
+    rationale: "지방자치 → 행안부장관 → 경남도지사 → 의원"
+    confidence: high
+
+  - name: 우상호
+    political_roles: [국회의원, 원내대표, 비대위원장]
+    political_parties: [열린우리당, 민주당, 더불어민주당]
+    economic_organizations: [학생운동, 자문]
+    economic_roles: [foundation_chair]
+    rationale: "학생운동 → 4선 의원 → 원내대표 → 비대위원장"
+    confidence: high
+
+  - name: 이재정
+    political_roles: [국회의원, 통일부장관, 경기교육감]
+    political_parties: [새천년민주당, 통합진보당, 무소속]
+    economic_organizations: [성공회대, 학계]
+    economic_roles: [professor]
+    rationale: "성공회대 총장 → 통일부장관 → 의원 → 경기교육감"
+    confidence: high
+
+  - name: 노웅래
+    political_roles: [국회의원]
+    political_parties: [더불어민주당]
+    economic_organizations: [언론, MBC]
+    economic_roles: [executive]
+    rationale: "MBC 기자 → 4선 의원"
+    confidence: high
+
+  - name: 진중권
+    political_roles: [평론가, 작가]
+    economic_organizations: [동양대, 학계, 평론]
+    economic_roles: [professor]
+    rationale: "동양대 교수 → 정치 평론·작가"
+    confidence: high
+
+  - name: 도종환
+    political_roles: [국회의원, 문화체육관광부장관]
+    political_parties: [더불어민주당]
+    economic_organizations: [작가, 학계]
+    economic_roles: [professor]
+    rationale: "시인·교사 → 의원 → 문체부장관"
+    confidence: high
+
+  - name: 김원기
+    political_roles: [국회의원, 국회의장]
+    political_parties: [새천년민주당, 열린우리당]
+    economic_organizations: [언론, 자문]
+    economic_roles: [executive]
+    rationale: "기자 → 7선 의원 → 17대 국회의장"
+    confidence: high
+
+  - name: 임채정
+    political_roles: [국회의원, 국회의장]
+    political_parties: [새천년민주당, 열린우리당]
+    economic_organizations: [언론, 자문]
+    economic_roles: [executive]
+    rationale: "기자 → 5선 의원 → 17대 국회의장"
+    confidence: high
+
+  - name: 김형오
+    political_roles: [국회의원, 국회의장]
+    political_parties: [한나라당]
+    economic_organizations: [언론, 자문]
+    economic_roles: [executive]
+    rationale: "기자 → 5선 의원 → 18대 국회의장"
+    confidence: high
+
+  - name: 강창희
+    political_roles: [국회의원, 국회의장]
+    political_parties: [한나라당, 새누리당]
+    economic_organizations: [정치 자문]
+    economic_roles: [foundation_chair]
+    rationale: "5선 의원 → 19대 국회의장"
+    confidence: high
+
+  - name: 문희상
+    political_roles: [국회의원, 청와대비서실장, 국회의장]
+    political_parties: [새천년민주당, 열린우리당, 민주당, 더불어민주당]
+    economic_organizations: [정치 자문]
+    economic_roles: [foundation_chair]
+    rationale: "6선 의원 → 청와대비서실장 → 20대 국회의장"
+    confidence: high
+
+  - name: 박병석
+    political_roles: [국회의원, 국회의장]
+    political_parties: [더불어민주당]
+    economic_organizations: [언론, 자문]
+    economic_roles: [executive]
+    rationale: "기자 → 6선 의원 → 21대 국회의장 (중복 entry)"
+    confidence: high
+
+  - name: 우원식
+    political_roles: [국회의원, 국회의장, 원내대표]
+    political_parties: [더불어민주당]
+    economic_organizations: [정치 자문]
+    economic_roles: [foundation_chair]
+    rationale: "5선 의원 → 22대 국회의장"
+    confidence: high
+
+  # =====================================================================
+  # Tier 5: 재벌·family + 협회·재단 정치 활동
+  # =====================================================================
+
+  - name: 정몽구
+    economic_organizations: [현대자동차, 현대모비스, 현대제철]
+    economic_roles: [owner_family]
+    rationale: "현대자동차 명예회장, 정주영家 (중복 entry)"
+    confidence: high
+
+  - name: 정몽근
+    economic_organizations: [현대백화점]
+    economic_roles: [owner_family]
+    rationale: "현대백화점 명예회장, 정주영家"
+    confidence: medium
+
+  - name: 정몽일
+    economic_organizations: [현대엘리베이터, 현대상선]
+    economic_roles: [owner_family]
+    rationale: "현대그룹 일가, 다양한 계열사"
+    confidence: medium
+
+  - name: 정몽혁
+    economic_organizations: [현대종합상사, 현대코퍼레이션]
+    economic_roles: [owner_family]
+    rationale: "현대그룹 일가, 종합상사 회장"
+    confidence: medium
+
+  - name: 이부영
+    political_roles: [국회의원, 당대표]
+    political_parties: [한나라당, 열린우리당, 민주당]
+    economic_organizations: [언론, 시민운동]
+    economic_roles: [executive, foundation_chair]
+    rationale: "민주화운동 → 4선 의원 → 당대표"
+    confidence: high
+
+  - name: 이서현
+    economic_organizations: [삼성복지재단, 호텔신라]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "삼성家, 삼성복지재단 이사장"
+    confidence: medium
+
+  - name: 홍라희
+    economic_organizations: [삼성미술관리움, 삼성문화재단]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "삼성家 (이건희 부인), 미술관·재단"
+    confidence: high
+
+  - name: 이미경
+    economic_organizations: [CJ, CJ제일제당, CJ ENM]
+    economic_roles: [owner_family]
+    rationale: "CJ 그룹 부회장, 손경식 자매"
+    confidence: medium
+
+  - name: 이재현
+    economic_organizations: [CJ, CJ제일제당]
+    economic_roles: [owner_family]
+    rationale: "CJ 그룹 회장"
+    confidence: high
+
+  - name: 정용진
+    economic_organizations: [신세계, 이마트, 신세계백화점]
+    economic_roles: [owner_family]
+    rationale: "신세계그룹 부회장"
+    confidence: high
+
+  - name: 정유경
+    economic_organizations: [신세계, 백화점]
+    economic_roles: [owner_family]
+    rationale: "신세계백화점 사장, 정용진 자매"
+    confidence: medium
+
+  - name: 김우중
+    economic_organizations: [대우, 대우그룹]
+    economic_roles: [owner_family]
+    rationale: "대우그룹 창업자, IMF 후 망명·정치적 파장"
+    confidence: high
+
+  - name: 이상현
+    economic_organizations: [태광, 태광산업]
+    economic_roles: [owner_family]
+    rationale: "태광그룹 회장"
+    confidence: medium
+
+  - name: 김택진
+    economic_organizations: [엔씨소프트, NC]
+    economic_roles: [owner_family, executive]
+    rationale: "엔씨소프트 창업자·대표"
+    confidence: high
+
+  - name: 김범수
+    economic_organizations: [카카오, 카카오엔터테인먼트]
+    economic_roles: [owner_family]
+    rationale: "카카오 창업자, 정·재계 자문"
+    confidence: high
+
+  - name: 이해진
+    economic_organizations: [네이버, 네이버주식회사]
+    economic_roles: [owner_family, foundation_chair]
+    rationale: "네이버 창업자, 글로벌 투자자"
+    confidence: high
+
+  - name: 방시혁
+    economic_organizations: [하이브, 빅히트엔터테인먼트]
+    economic_roles: [owner_family, executive]
+    rationale: "하이브 의장, BTS 소속사"
+    confidence: high
+
+  - name: 권혁빈
+    economic_organizations: [스마일게이트, 크로스파이어]
+    economic_roles: [owner_family]
+    rationale: "스마일게이트 창업자"
+    confidence: medium
+
+  - name: 박현주
+    economic_organizations: [미래에셋, 미래에셋대우]
+    economic_roles: [owner_family, executive]
+    rationale: "미래에셋 창업자·회장, 한국 대표 금융인"
+    confidence: high
+
+  - name: 김승유
+    political_roles: [한국금융협의회, 자문]
+    economic_organizations: [하나금융지주]
+    economic_roles: [executive, board_member]
+    rationale: "하나금융지주 회장 (前), 금융계 영향력"
+    confidence: high
+
+  - name: 윤종원
+    political_roles: [청와대경제수석, 국무조정실장, IBK기업은행장]
+    economic_organizations: [IBK기업은행, 사외이사]
+    economic_roles: [executive, board_member]
+    rationale: "재경부 → 청와대경제수석 → 국무조정실장 → IBK"
+    confidence: high
+
+  - name: 윤증현
+    political_roles: [재정경제부, 금융위원장, 기획재정부장관]
+    economic_organizations: [학계, 사외이사]
+    economic_roles: [professor, board_member]
+    rationale: "(중복 — 첫 entry 참조)"
+    confidence: high
+
+  - name: 어윤대
+    political_roles: [고려대총장, KB금융지주회장]
+    economic_organizations: [고려대, KB금융지주, 사외이사]
+    economic_roles: [executive, professor, board_member]
+    rationale: "고려대 총장 → KB금융지주 회장 → 사외이사"
+    confidence: high
+
+  - name: 박병원
+    political_roles: [재정경제부, 금융위원장]
+    economic_organizations: [한국경영자총협회, 사외이사]
+    economic_roles: [foundation_chair, board_member]
+    rationale: "재경부 → 금융위원장 → 경총 → 사외이사"
+    confidence: high
+
+  - name: 진동수
+    political_roles: [재정경제부, 금융위원장]
+    economic_organizations: [사외이사, 자문]
+    economic_roles: [board_member]
+    rationale: "재경부 → 금융위원장 → 사외이사"
+    confidence: medium
+
+  - name: 김동연
+    political_roles: [기획재정부장관, 경기도지사, 경제부총리]
+    political_parties: [더불어민주당]
+    economic_organizations: [학계, 자문]
+    economic_roles: [professor]
+    rationale: "기재부장관 → 경기도지사 → 정치 입문"
+    confidence: high
+
+  - name: 홍남기
+    political_roles: [경제부총리, 기획재정부장관, 국무조정실장]
+    economic_organizations: [학계, 자문]
+    economic_roles: [professor]
+    rationale: "기재부 → 국무조정실장 → 경제부총리·기재부장관"
+    confidence: high
+
+  - name: 추경호
+    political_roles: [국회의원, 경제부총리, 기획재정부장관]
+    political_parties: [국민의힘]
+    economic_organizations: [학계, 자문]
+    economic_roles: [professor]
+    rationale: "재경부 → 기재부 차관 → 의원 → 경제부총리"
+    confidence: high

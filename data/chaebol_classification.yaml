@@ -5,59 +5,62 @@
 #   4 = 51~100대
 #   5 = 100대 외 (default for unmapped)
 #
-# Group names match FTC OpenAPI `unityGrupNm` exactly. `default` table
-# covers most years; year-specific overrides can be added under
-# `rankings.<year>` if (rare) historical reordering happens.
+# Group names match FTC OpenAPI `unityGrupNm` exactly. PR4-CANONICAL C1
+# 진단 결과 FTC는 한글 음차 form만 박음 (영문 SK/LG/GS/CJ/KT/LS/KT&G는
+# DB에 0건). 영문 form은 chaebol_aliases.yaml로 옮김 — chaebol_aliases_state
+# 거쳐 canonical_org_id로 resolve.
+#
+# `default` table은 대부분 연도. year-specific override가 필요하면
+# `rankings.<year>` 추가 가능.
 rankings:
   default:
     # ---- 1: 5대 ----
-    # FTC API returns Korean transliterations for English-named groups
-    # (SK → 에스케이, LG → 엘지). We map both forms to tier 1.
     삼성: 1
-    SK: 1
     에스케이: 1
     현대자동차: 1
-    LG: 1
     엘지: 1
     롯데: 1
+
     # ---- 2: 6~30대 ----
     포스코: 2
     한화: 2
-    GS: 2
+    지에스: 2
     HD현대: 2
     신세계: 2
-    CJ: 2
+    씨제이: 2
     한진: 2
     카카오: 2
-    LS: 2
+    엘에스: 2          # PR4-CANONICAL fix: was tier 3 dup. DB 1575 actors → tier 2.
     DL: 2
     중흥건설: 2
     부영: 2
     미래에셋: 2
     네이버: 2
     현대백화점: 2
-    HMM: 2
-    KT: 2
-    OCI: 2
+    에이치엠엠: 2      # PR4-CANONICAL: HMM의 FTC 한글 form
+    케이티: 2
+    오씨아이: 2        # PR4-CANONICAL: OCI의 FTC 한글 form
     효성: 2
     영풍: 2
     하림: 2
     호반건설: 2
     교보생명보험: 2
-    KT&G: 2
-    에스오일: 2
+    케이티앤지: 2      # PR4-CANONICAL: KT&G의 FTC 한글 form
+    에쓰-오일: 2       # PR4-CANONICAL: was 에스오일 (FTC form 일치)
     두산: 2
     DB: 2
     농협: 2
     BGF: 2
+    현대중공업: 2      # PR4-CANONICAL: HD현대와 분리된 그룹
+
     # ---- 3: 31~50대 ----
-    엘에스: 3
+    엘엑스: 3          # PR4-CANONICAL: LX (LG에서 분리)
     셀트리온: 3
     동국제강: 3
     코오롱: 3
     이랜드: 3
     아모레퍼시픽: 3
-    한국GM: 3
+    한국지엠: 3        # PR4-CANONICAL: 한국GM의 FTC 한글 form
     동원: 3
     SM: 3
     태광: 3
@@ -68,16 +71,21 @@ rankings:
     에코프로: 3
     오케이금융그룹: 3
     한국타이어: 3
+    한국앤컴퍼니그룹(舊 한국타이어): 3   # 동일 그룹, history transition form
     DN: 3
     삼천리: 3
     금호아시아나: 3
+    금호석유화학: 3
+    넥슨: 3
+    쿠팡: 3
+    넷마블: 3
+    에이치디씨: 3      # PR4-CANONICAL: HDC
+
     # ---- 4: 51~100대 ----
     장금상선: 4
     글로벌세아: 4
     한일홀딩스: 4
     유진: 4
-    심팩: 4
-    동성: 4
     KG: 4
     농심: 4
     삼양: 4
@@ -85,20 +93,39 @@ rankings:
     아이에스지주: 4
     원익: 4
     영원: 4
-    BS: 4
+    BS(舊 보성): 4    # PR4-CANONICAL: was 'BS' — FTC 진짜 form 반영
+    보성: 4            # PR4-CANONICAL: 보성그룹
     엠디엠: 4
-    엠피씨씨: 4
     HL: 4
     하이트진로: 4
-    동양: 4
     애경: 4
     한솔: 4
     삼표: 4
-    국방과학연구소: 4
-    엠피씨파트너스: 4
-    아주: 4
     호반: 4
-    SK해운: 4
     화승: 4
-    농업협동조합중앙회: 4
-    수협: 4
+    태영: 4
+    다우키움: 4
+    케이씨씨: 4
+    한라: 4
+    신영: 4
+    사조: 4
+    일진: 4
+    대광: 4
+    현대해상화재보험: 4
+    반도홀딩스: 4
+    고려에이치씨: 4
+    IMM인베스트먼트: 4
+    대신: 4
+    대신증권: 4
+    하이브: 4
+    파라다이스: 4
+    한국투자금융: 4
+    대우건설: 4
+    대우조선해양: 4
+
+    # ---- 5: 100대 외 (그 외 명시 — 모르는 그룹은 default 5로 fall-through) ----
+    빗썸: 5
+    두나무: 5
+    한국항공우주산업: 5
+    소노인터내셔널: 5
+    유코카캐리어스: 5
