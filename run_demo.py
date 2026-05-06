@@ -25,6 +25,7 @@ import argparse
 import json
 import logging
 import os
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
@@ -55,6 +56,13 @@ def main():
                    help="recreate DB from scratch (default keeps existing DB)")
     p.add_argument("--keep-db", dest="fresh", action="store_false",
                    help="deprecated, redundant: keep existing DB rows (default)")
+    p.add_argument(
+        "--db-path", type=str, default=str(db.DEMO_DB_PATH),
+        help=(f"DB file path (default: {db.DEMO_DB_PATH.name} demo DB; "
+              f"pass 'data/world.db' explicitly to touch the production "
+              f"archive. That path requires typed confirmation when "
+              f"combined with --fresh)"),
+    )
     p.add_argument("--shock-severity", type=float, default=0.75)
     p.add_argument("--rebuild-assembly-summaries", action="store_true",
                    help="(one-off) backfill BPMBILLSUMMARY into existing "
@@ -69,8 +77,29 @@ def main():
     # 0. DB
     # Rebuild path operates on whatever is already in DB; never recreate.
     fresh = False if args.rebuild_assembly_summaries else args.fresh
-    con = db.init(fresh=fresh)
-    log.info("DB ready (fresh=%s)", fresh)
+    db_path = Path(args.db_path).resolve()
+    is_production_db = db_path == db.DB_PATH.resolve()
+
+    # ★ Production-DB safety guard. The 217k-actor / 81k-alias archive
+    # is the result of a 6,000+ LOC PR sprint; a stray `--fresh` against
+    # it would erase that work. Require typed confirmation, not just
+    # `--yes`-style flags, so the cost of resetting is at least one
+    # explicit string the user has to read and retype.
+    if fresh and is_production_db:
+        log.warning("=" * 70)
+        log.warning("DANGER: --fresh + production DB (%s)", db_path)
+        log.warning("This will DELETE all 217k+ actors / 81k aliases / "
+                    "265k edges / 28k events.")
+        log.warning("=" * 70)
+        confirm = input(
+            "Type 'YES RESET PRODUCTION' to proceed (anything else aborts): ",
+        )
+        if confirm.strip() != "YES RESET PRODUCTION":
+            log.info("Aborted by user.")
+            return
+
+    con = db.init(path=db_path, fresh=fresh)
+    log.info("DB ready (path=%s, fresh=%s)", db_path, fresh)
 
     # Optional one-off: backfill SUMMARY into existing assembly docs.
     if args.rebuild_assembly_summaries:

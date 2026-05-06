@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 from .core_io import (
-    DB_PATH, connect, init,
+    DB_PATH, DEMO_DB_PATH, connect, init,
     insert_actor, insert_edge, insert_state, insert_event,
     insert_decision, insert_market_pressure,
     insert_decision_journal_entry, update_decision_journal_outcome,
@@ -58,7 +58,7 @@ from .dyn_catalog_io import (
 
 __all__ = [
     # core_io
-    "DB_PATH", "connect", "init",
+    "DB_PATH", "DEMO_DB_PATH", "connect", "init",
     "insert_actor", "insert_edge", "insert_state", "insert_event",
     "insert_decision", "insert_market_pressure",
     "insert_decision_journal_entry", "update_decision_journal_outcome",

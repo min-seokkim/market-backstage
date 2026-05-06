@@ -15,6 +15,11 @@ from pathlib import Path
 from typing import Any
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "world.db"
+# Demo DB sits next to production but is the default for run_demo.py so
+# `--fresh` accidents don't wipe the live 217k-actor archive. PR-DEMO-DB-
+# ISOLATION (codex catch on PR-CLEANUP-v0): the `--fresh` flag is fine,
+# the issue is which file it points at.
+DEMO_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "world_demo.db"
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
 
