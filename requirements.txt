@@ -4,3 +4,8 @@ python-dotenv>=1.0.0
 requests>=2.32.0
 beautifulsoup4>=4.12.0
 PyYAML>=6.0
+
+# PR-DASHBOARD-v0: read-only Streamlit dashboard
+streamlit>=1.30.0
+plotly>=5.18.0
+pandas>=2.1.0
