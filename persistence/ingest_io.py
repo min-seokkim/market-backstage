@@ -42,11 +42,44 @@ def insert_variable(con: sqlite3.Connection, *, spec_id: str, ts: str,
 
 def insert_raw_event(con: sqlite3.Connection, *, template_id: str, ts: str,
                      payload: dict, source_doc_id: int | None = None,
-                     severity: float | None = None) -> int:
+                     severity: float | None = None,
+                     # ==== Schema v2 ====
+                     primary_actor_id: str | None = None,
+                     event_subtype: str | None = None,
+                     impact_magnitude: float | None = None,
+                     actor_targets: list | None = None) -> int:
+    """Insert a raw event row.
+
+    Schema v2 adds:
+      - primary_actor_id: canonical actor mainly affected
+      - event_subtype: fine-grained event subtype
+      - impact_magnitude: 0~1 event-level intensity
+      - actor_targets: heterogeneous per-actor impact list
+        [{actor_id, magnitude, interpretation?}, ...]
+    """
+    if impact_magnitude is not None and not (0.0 <= impact_magnitude <= 1.0):
+        raise ValueError(
+            f"insert_raw_event: impact_magnitude must be 0.0~1.0, "
+            f"got {impact_magnitude}"
+        )
+
+    from persistence.core_io import nfkc, nfkc_recursive
+
+    template_id = nfkc(template_id)
+    primary_actor_id = nfkc(primary_actor_id)
+    event_subtype = nfkc(event_subtype)
+    payload = nfkc_recursive(payload)
+    actor_targets = nfkc_recursive(actor_targets)
+
     cur = con.execute(
-        "INSERT INTO raw_events (template_id, ts, payload_json, source_doc_id, severity) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (template_id, ts, json.dumps(payload, ensure_ascii=False), source_doc_id, severity),
+        "INSERT INTO raw_events "
+        "(template_id, ts, payload_json, source_doc_id, severity, "
+        " primary_actor_id, event_subtype, impact_magnitude, actor_targets_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (template_id, ts, json.dumps(payload, ensure_ascii=False),
+         source_doc_id, severity,
+         primary_actor_id, event_subtype, impact_magnitude,
+         json.dumps(actor_targets, ensure_ascii=False) if actor_targets else None),
     )
     return cur.lastrowid
 

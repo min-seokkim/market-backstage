@@ -16,6 +16,8 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
+from persistence.core_io import nfkc, nfkc_recursive
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -437,6 +439,8 @@ def insert_causal_edge_proposal(con: sqlite3.Connection, *, p: dict,
 _ALLOWED_ACTOR_TYPES = {"person", "organization", "role_instance", "unknown",
                         None}
 
+_ALLOWED_EXT_ID_TYPES = {"huboid", "jurirno", "mona_cd", "naas_cd", None}
+
 
 def upsert_actor_dyn(con: sqlite3.Connection, *,
                      actor_id: str,
@@ -455,6 +459,23 @@ def upsert_actor_dyn(con: sqlite3.Connection, *,
                      proposal_source: str = "manual",
                      proposed_by: str = "manual",
                      rationale: str = "",
+                     # ==== Schema v2 hot fields ====
+                     hanja_name: str | None = None,
+                     birthday: str | None = None,
+                     external_id: str | None = None,
+                     external_id_type: str | None = None,
+                     # Tier system
+                     political_tier: int | None = None,
+                     economic_tier: int | None = None,
+                     peak_political_tier: int | None = None,
+                     peak_economic_tier: int | None = None,
+                     registered_as_candidate: int = 0,
+                     current_governance_position: str | None = None,
+                     current_party_position: str | None = None,
+                     current_party_name: str | None = None,
+                     current_corp_position: str | None = None,
+                     current_corp_group: str | None = None,
+                     tier_history_json: str | None = None,
                      ) -> None:
     """INSERT OR REPLACE into actors_dyn with the PR-Z `type` column.
 
@@ -472,14 +493,70 @@ def upsert_actor_dyn(con: sqlite3.Connection, *,
             f"upsert_actor_dyn: invalid type_={type_!r}; "
             f"expected one of person|organization|role_instance|unknown|None"
         )
+    if external_id_type not in _ALLOWED_EXT_ID_TYPES:
+        raise ValueError(
+            f"upsert_actor_dyn: invalid external_id_type={external_id_type!r}; "
+            f"expected one of huboid|jurirno|mona_cd|naas_cd|None"
+        )
+    if political_tier is not None and not (1 <= political_tier <= 5):
+        raise ValueError(
+            f"upsert_actor_dyn: political_tier must be 1~5, got {political_tier}"
+        )
+    if economic_tier is not None and not (1 <= economic_tier <= 5):
+        raise ValueError(
+            f"upsert_actor_dyn: economic_tier must be 1~5, got {economic_tier}"
+        )
+    if registered_as_candidate not in (0, 1):
+        raise ValueError(
+            f"upsert_actor_dyn: registered_as_candidate must be 0 or 1, "
+            f"got {registered_as_candidate}"
+        )
+
+    # NFKC defense: every string + every nested JSON value is normalized
+    # at the persist boundary. See persistence.core_io for rationale.
+    actor_id = nfkc(actor_id)
+    name = nfkc(name)
+    category = nfkc(category)
+    role = nfkc(role)
+    notes = nfkc(notes) or ""
+    rationale = nfkc(rationale) or ""
+    proposal_source = nfkc(proposal_source)
+    proposed_by = nfkc(proposed_by)
+    hanja_name = nfkc(hanja_name)
+    birthday = nfkc(birthday)
+    external_id = nfkc(external_id)
+    external_id_type = nfkc(external_id_type)
+    current_governance_position = nfkc(current_governance_position)
+    current_party_position = nfkc(current_party_position)
+    current_party_name = nfkc(current_party_name)
+    current_corp_position = nfkc(current_corp_position)
+    current_corp_group = nfkc(current_corp_group)
+    identity = nfkc_recursive(identity)
+    sources = nfkc_recursive(sources)
+    schema = nfkc_recursive(schema)
+    decision_variables = nfkc_recursive(decision_variables)
+    tier_history_json = nfkc(tier_history_json)
+
     now = _now_iso()
     con.execute(
         "INSERT OR REPLACE INTO actors_dyn "
         "(id, name, category, role, activation, identity_json, "
         " sources_json, schema_json, decision_variables_json, notes, "
         " status, trust_score, proposal_source, proposed_by, proposed_at, "
-        " rationale, type) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " rationale, type, "
+        " hanja_name, birthday, external_id, external_id_type, "
+        " political_tier, economic_tier, peak_political_tier, peak_economic_tier, "
+        " registered_as_candidate, "
+        " current_governance_position, current_party_position, current_party_name, "
+        " current_corp_position, current_corp_group, "
+        " tier_history_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+        "        ?, ?, ?, ?, "
+        "        ?, ?, ?, ?, "
+        "        ?, "
+        "        ?, ?, ?, "
+        "        ?, ?, "
+        "        ?)",
         (actor_id, name, category, role, activation,
          json.dumps(identity or {}, ensure_ascii=False),
          json.dumps(sources or [], ensure_ascii=False),
@@ -488,7 +565,13 @@ def upsert_actor_dyn(con: sqlite3.Connection, *,
             if decision_variables is not None else None,
          notes,
          status, float(trust_score), proposal_source, proposed_by, now,
-         rationale, type_),
+         rationale, type_,
+         hanja_name, birthday, external_id, external_id_type,
+         political_tier, economic_tier, peak_political_tier, peak_economic_tier,
+         registered_as_candidate,
+         current_governance_position, current_party_position, current_party_name,
+         current_corp_position, current_corp_group,
+         tier_history_json),
     )
 
 
@@ -498,23 +581,46 @@ def upsert_edge(con: sqlite3.Connection, *,
                 edge_type: str,
                 ts: str,
                 metadata: dict | None = None,
+                # ==== Schema v2 ====
+                election_id: str | None = None,
+                strength: float | None = None,
+                confidence: float | None = None,
                 ) -> None:
-    """INSERT OR REPLACE into edges_dyn (PR-Z).
+    """INSERT OR REPLACE into edges_dyn (PR-Z + Schema v2).
 
-    Distinct from `insert_edge` in core_io: that one writes to the runtime
-    `edges` table (undirected pairwise World graph). This one writes the
-    typed actor-actor relationship registry used for org/person/role
-    structural ties.
+    Schema v2 adds:
+      - election_id: denormalized for fast NEC-edge filtering
+      - strength: relationship intensity 0~1 (e.g. ownership_pct/100 for
+        shareholder_of, 1.0 for deterministic ties like won_election)
+      - confidence: observer confidence 0~1 (deterministic ingest = 1.0;
+        LLM-extracted edges may be < 1.0)
 
     `ts` is an ISO8601 string. Caller is responsible for serialization
     (e.g. `datetime.now(timezone.utc).isoformat()`).
     """
+    if strength is not None and not (0.0 <= strength <= 1.0):
+        raise ValueError(
+            f"upsert_edge: strength must be 0.0~1.0, got {strength}"
+        )
+    if confidence is not None and not (0.0 <= confidence <= 1.0):
+        raise ValueError(
+            f"upsert_edge: confidence must be 0.0~1.0, got {confidence}"
+        )
+
+    src_actor_id = nfkc(src_actor_id)
+    dst_actor_id = nfkc(dst_actor_id)
+    edge_type = nfkc(edge_type)
+    election_id = nfkc(election_id)
+    metadata = nfkc_recursive(metadata)
+
     con.execute(
         "INSERT OR REPLACE INTO edges_dyn "
-        "(src_actor_id, dst_actor_id, edge_type, ts, metadata) "
-        "VALUES (?, ?, ?, ?, ?)",
+        "(src_actor_id, dst_actor_id, edge_type, ts, metadata, "
+        " election_id, strength, confidence) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (src_actor_id, dst_actor_id, edge_type, ts,
-         json.dumps(metadata, ensure_ascii=False) if metadata else None),
+         json.dumps(metadata, ensure_ascii=False) if metadata else None,
+         election_id, strength, confidence),
     )
 
 
@@ -549,6 +655,10 @@ def upsert_alias(con: sqlite3.Connection, *,
         raise ValueError(
             f"upsert_alias: confidence must be in [0.0, 1.0], got {confidence}"
         )
+    alias_actor_id = nfkc(alias_actor_id)
+    canonical_actor_id = nfkc(canonical_actor_id)
+    evidence_source = nfkc(evidence_source)
+    metadata = nfkc_recursive(metadata)
     resolved_at = resolved_at or _now_iso()
     con.execute(
         "INSERT OR REPLACE INTO person_aliases "

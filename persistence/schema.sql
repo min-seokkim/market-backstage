@@ -9,7 +9,14 @@ CREATE TABLE IF NOT EXISTS documents (
     published_at   TEXT,                          -- ISO8601
     fetched_at     TEXT NOT NULL,                 -- ISO8601
     raw_hash       TEXT UNIQUE,
-    metadata_json  TEXT
+    metadata_json  TEXT,
+    -- ==== Schema v2 hot fields (PR-SCHEMA-V2) ====
+    -- Denormalized for indexable filters; keeps metadata_json as the
+    -- lossless source of truth.
+    outlet               TEXT,                    -- e.g. '조선일보' / 'mof' / etc
+    llm_priority         INTEGER,                 -- 1=hot, higher=lower priority
+    matched_actors_json  TEXT,                    -- list of canonical actor_ids found in body
+    signal_extracted     INTEGER                  -- 0/1 — has the LLM extractor visited
 );
 
 CREATE TABLE IF NOT EXISTS variables (
@@ -29,6 +36,15 @@ CREATE TABLE IF NOT EXISTS raw_events (
     payload_json  TEXT NOT NULL,
     source_doc_id INTEGER,
     severity      REAL,
+    -- ==== Schema v2 (PR-SCHEMA-V2) ====
+    -- Actor reference (denormalized from payload_json for indexable joins)
+    primary_actor_id    TEXT,                     -- canonical actor_id mainly affected
+    event_subtype       TEXT,                     -- e.g. 'candidate_registered', 'subsidiary_addition'
+    -- Behavioural-economic lens: same event affects different actors
+    -- with different magnitudes / interpretations
+    impact_magnitude    REAL,                     -- 0~1, event-level intensity
+    actor_targets_json  TEXT,                     -- [{actor_id, magnitude, interpretation?}, ...]
+    CHECK (impact_magnitude IS NULL OR (impact_magnitude >= 0.0 AND impact_magnitude <= 1.0)),
     FOREIGN KEY (source_doc_id) REFERENCES documents(id)
 );
 
@@ -219,7 +235,35 @@ CREATE TABLE IF NOT EXISTS actors_dyn (
     -- (e.g. president = the office; lee_jaemyung as president = role_instance).
     type                     TEXT
         CHECK(type IS NULL OR type IN
-              ('person', 'organization', 'role_instance', 'unknown'))
+              ('person', 'organization', 'role_instance', 'unknown')),
+    -- ==== Schema v2 hot fields (PR-SCHEMA-V2) ====
+    -- Identity hot fields denormalized from identity_json for index-driven
+    -- joins. NFKC-normalized at every persist boundary (see persistence.core_io).
+    hanja_name               TEXT,
+    birthday                 TEXT,                -- YYYYMMDD
+    external_id              TEXT,                -- huboid / jurirno / mona_cd / naas_cd
+    external_id_type         TEXT
+        CHECK(external_id_type IS NULL
+              OR external_id_type IN ('huboid','jurirno','mona_cd','naas_cd')),
+    -- Tier system: peak = highest seen across history (lowest number = highest tier)
+    political_tier           INTEGER
+        CHECK(political_tier IS NULL OR political_tier BETWEEN 1 AND 5),
+    economic_tier            INTEGER
+        CHECK(economic_tier IS NULL OR economic_tier BETWEEN 1 AND 5),
+    peak_political_tier      INTEGER
+        CHECK(peak_political_tier IS NULL OR peak_political_tier BETWEEN 1 AND 5),
+    peak_economic_tier       INTEGER
+        CHECK(peak_economic_tier IS NULL OR peak_economic_tier BETWEEN 1 AND 5),
+    registered_as_candidate  INTEGER DEFAULT 0
+        CHECK(registered_as_candidate IN (0, 1)),
+    -- Position fields (current snapshot)
+    current_governance_position TEXT,
+    current_party_position      TEXT,
+    current_party_name          TEXT,
+    current_corp_position       TEXT,
+    current_corp_group          TEXT,
+    -- Tier history JSON: [{ts, political_tier, economic_tier, reason, source}, ...]
+    tier_history_json        TEXT
 );
 
 -- ==== PR-Z: actor-actor relationship edges (separate from causal_edges_dyn,
@@ -235,6 +279,16 @@ CREATE TABLE IF NOT EXISTS edges_dyn (
     ts            TEXT NOT NULL,           -- ISO8601 (PR-Z spec used TIMESTAMP;
                                            -- SQLite stores TEXT regardless)
     metadata      TEXT,                    -- JSON
+    -- ==== Schema v2 (PR-SCHEMA-V2) ====
+    election_id   TEXT,                    -- denormalized for fast filter (NEC edges)
+    -- Behavioural-economic lens: relationship strength + observer
+    -- confidence. NEC `member_of_party` = 1.0/1.0 (deterministic);
+    -- FTC `shareholder_of` carries actual ownership_pct/100; LLM-extracted
+    -- edges may carry strength·confidence < 1.0 to express uncertainty.
+    strength      REAL,
+    confidence    REAL,
+    CHECK (strength IS NULL OR (strength >= 0.0 AND strength <= 1.0)),
+    CHECK (confidence IS NULL OR (confidence >= 0.0 AND confidence <= 1.0)),
     PRIMARY KEY (src_actor_id, dst_actor_id, edge_type, ts)
 );
 
@@ -362,3 +416,70 @@ CREATE INDEX IF NOT EXISTS idx_extlink_doc    ON extraction_doc_links(doc_id);
 CREATE INDEX IF NOT EXISTS idx_utter_actor    ON actor_utterances(actor_id);
 CREATE INDEX IF NOT EXISTS idx_utter_bill     ON actor_utterances(bill_id);
 CREATE INDEX IF NOT EXISTS idx_eum_bill       ON eum_traces(bill_id);
+
+-- ==== Schema v2 indexes (PR-SCHEMA-V2) =================================
+
+-- actors_dyn
+CREATE INDEX IF NOT EXISTS idx_actors_dyn_proposal_source
+    ON actors_dyn(proposal_source);
+CREATE INDEX IF NOT EXISTS idx_actors_dyn_type
+    ON actors_dyn(type);
+CREATE INDEX IF NOT EXISTS idx_actors_dyn_name
+    ON actors_dyn(name);
+CREATE INDEX IF NOT EXISTS idx_actors_dyn_hanja_birthday
+    ON actors_dyn(hanja_name, birthday)
+    WHERE hanja_name IS NOT NULL AND birthday IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_actors_dyn_name_birthday
+    ON actors_dyn(name, birthday)
+    WHERE birthday IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_actors_dyn_external
+    ON actors_dyn(external_id_type, external_id)
+    WHERE external_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_actors_dyn_political_tier
+    ON actors_dyn(political_tier)
+    WHERE political_tier IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_actors_dyn_economic_tier
+    ON actors_dyn(economic_tier)
+    WHERE economic_tier IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_actors_dyn_governance_position
+    ON actors_dyn(current_governance_position)
+    WHERE current_governance_position IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_actors_dyn_corp_group
+    ON actors_dyn(current_corp_group)
+    WHERE current_corp_group IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_actors_dyn_dual_tier
+    ON actors_dyn(political_tier, economic_tier)
+    WHERE political_tier IS NOT NULL AND economic_tier IS NOT NULL;
+
+-- edges_dyn
+CREATE INDEX IF NOT EXISTS idx_edges_dyn_election
+    ON edges_dyn(election_id)
+    WHERE election_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_edges_dyn_strength
+    ON edges_dyn(strength)
+    WHERE strength IS NOT NULL;
+
+-- raw_events
+CREATE INDEX IF NOT EXISTS idx_raw_events_primary_actor
+    ON raw_events(primary_actor_id)
+    WHERE primary_actor_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_raw_events_subtype
+    ON raw_events(event_subtype)
+    WHERE event_subtype IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_raw_events_template
+    ON raw_events(template_id);
+CREATE INDEX IF NOT EXISTS idx_raw_events_impact
+    ON raw_events(impact_magnitude)
+    WHERE impact_magnitude IS NOT NULL;
+
+-- documents
+CREATE INDEX IF NOT EXISTS idx_documents_outlet
+    ON documents(outlet)
+    WHERE outlet IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_documents_llm_priority
+    ON documents(llm_priority)
+    WHERE llm_priority IS NOT NULL AND signal_extracted IS NULL;
+
+-- person_aliases
+CREATE INDEX IF NOT EXISTS idx_person_aliases_canonical_evidence
+    ON person_aliases(canonical_actor_id, evidence_source);

@@ -41,6 +41,7 @@ from dotenv import load_dotenv
 
 from . import (IngestedActor, IngestedAlias, IngestedEdge, IngestedRawEvent,
                IngestedVariable, IngestResult)
+from persistence.tier import compute_political_tier, update_tier_history
 
 load_dotenv()
 log = logging.getLogger(__name__)
@@ -377,7 +378,14 @@ class NecAdapter:
     # ---- builders ----
 
     def _build_actors_and_aliases(self, result, sg_codes, all_records):
-        """politician (canonical + per-election alias) + 정당 + election."""
+        """politician (canonical + per-election alias) + 정당 + election.
+
+        Schema v2: two-pass. First pass collects per-alias political_tier
+        and tracks the *peak* (highest = lowest number) per canonical_id.
+        Second pass emits canonical actors carrying that peak. This
+        captures cross-election trajectories — a 기초장 who runs for
+        president gets canonical.peak_political_tier = 1.
+        """
         sg_meta_by_key = {(s["sg_id"], s["sg_typecode"]): s for s in sg_codes}
 
         seen_actor_ids: set[str] = set()
@@ -435,9 +443,13 @@ class NecAdapter:
                 proposal_source="nec_election",
             ))
 
-        # 3) politician canonical + per-election alias.
+        # 3) politician canonical + per-election alias (two-pass).
         canonical_seen: dict[tuple, str] = {}
+        canonical_first_record: dict[str, dict] = {}  # canonical_id → first record
+        canonical_peak: dict[str, int] = {}           # canonical_id → best (lowest) tier
+        canonical_history_entries: dict[str, list] = {}
         alias_seen: set[str] = set()
+        alias_records: list[tuple] = []  # (alias_id, canonical_id, record, tier)
 
         for r in all_records:
             if not r.get("name") or not r.get("huboid"):
@@ -449,52 +461,40 @@ class NecAdapter:
             else:
                 canonical_id = _canonical_id(r)
                 canonical_seen[key] = canonical_id
-                add_actor(IngestedActor(
-                    actor_id=canonical_id,
-                    name=r["name"],
-                    type_="person",
-                    category="reference_politician",
-                    identity={
-                        "kind": "politician",
-                        "hanjaName": r.get("hanja_name"),
-                        "birthday": r.get("birthday"),
-                        "gender": r.get("gender"),
-                        "first_seen_election": r["sg_id"],
-                        "first_seen_party": r.get("jd_name"),
-                    },
-                    proposal_source="nec_canonical",
-                ))
+                canonical_first_record[canonical_id] = r
 
             alias_id = _alias_id(r)
             if alias_id in alias_seen:
                 continue
             alias_seen.add(alias_id)
 
-            add_actor(IngestedActor(
-                actor_id=alias_id,
-                name=r["name"],
-                type_="role_instance",
-                category=f"reference_politician_appearance_{r['candidate_type']}",
-                identity={
-                    "kind": "politician_election_appearance",
-                    "huboid": r["huboid"],
-                    "sg_id": r["sg_id"],
-                    "sg_typecode": r["sg_typecode"],
-                    "candidate_type": r["candidate_type"],
-                    "election_party": r.get("jd_name"),
-                    "career1": r.get("career1"),
-                    "career2": r.get("career2"),
-                    "edu": r.get("edu"),
-                    "job": r.get("job"),
-                    "addr": r.get("addr"),
-                    "giho": r.get("giho"),
-                    "regdate": r.get("regdate"),
-                    "status": r.get("status"),
-                    "dugsu": r.get("dugsu"),
-                    "dugyul": r.get("dugyul"),
-                },
-                proposal_source=f"nec_alias_{r['candidate_type']}",
-            ))
+            # ==== Schema v2: tier computation per appearance ====
+            sg_typecode = r["sg_typecode"]
+            party_name = r.get("jd_name")
+            election_ts = r["sg_id"]  # YYYYMMDD; classification normalizes
+            alias_political_tier = compute_political_tier(
+                candidate_type=sg_typecode,
+                party_name=party_name,
+                election_ts=election_ts,
+            )
+
+            # Track peak for canonical (lower = higher tier)
+            if alias_political_tier is not None:
+                prev = canonical_peak.get(canonical_id)
+                if prev is None or alias_political_tier < prev:
+                    canonical_peak[canonical_id] = alias_political_tier
+                # Stash an entry for tier_history (chronological appearance)
+                canonical_history_entries.setdefault(canonical_id, []).append({
+                    "ts": election_ts,
+                    "political_tier": alias_political_tier,
+                    "economic_tier": None,
+                    "reason": f"candidate_in_{sg_typecode}",
+                    "source": "nec_alias",
+                })
+
+            alias_records.append(
+                (alias_id, canonical_id, r, alias_political_tier)
+            )
 
             confidence, evidence = _alias_evidence(r)
             result.aliases.append(IngestedAlias(
@@ -510,11 +510,76 @@ class NecAdapter:
                 },
             ))
 
+        # 3a) Emit canonical actors with peak_political_tier
+        for canonical_id, first_rec in canonical_first_record.items():
+            peak = canonical_peak.get(canonical_id)
+            history = canonical_history_entries.get(canonical_id, [])
+            history_json = (
+                json.dumps(history, ensure_ascii=False)
+                if history else None
+            )
+            add_actor(IngestedActor(
+                actor_id=canonical_id,
+                name=first_rec["name"],
+                type_="person",
+                category="reference_politician",
+                identity={
+                    "kind": "politician",
+                    "hanjaName": first_rec.get("hanja_name"),
+                    "birthday": first_rec.get("birthday"),
+                    "gender": first_rec.get("gender"),
+                    "first_seen_election": first_rec["sg_id"],
+                    "first_seen_party": first_rec.get("jd_name"),
+                },
+                proposal_source="nec_canonical",
+                hanja_name=first_rec.get("hanja_name"),
+                birthday=first_rec.get("birthday"),
+                peak_political_tier=peak,
+                tier_history_json=history_json,
+            ))
+
+        # 3b) Emit alias actors with per-appearance political_tier
+        for alias_id, canonical_id, rec, tier in alias_records:
+            sg_typecode = rec["sg_typecode"]
+            add_actor(IngestedActor(
+                actor_id=alias_id,
+                name=rec["name"],
+                type_="role_instance",
+                category=f"reference_politician_appearance_{rec['candidate_type']}",
+                identity={
+                    "kind": "politician_election_appearance",
+                    "huboid": rec["huboid"],
+                    "sg_id": rec["sg_id"],
+                    "sg_typecode": rec["sg_typecode"],
+                    "candidate_type": rec["candidate_type"],
+                    "election_party": rec.get("jd_name"),
+                    "career1": rec.get("career1"),
+                    "career2": rec.get("career2"),
+                    "edu": rec.get("edu"),
+                    "job": rec.get("job"),
+                    "addr": rec.get("addr"),
+                    "giho": rec.get("giho"),
+                    "regdate": rec.get("regdate"),
+                    "status": rec.get("status"),
+                    "dugsu": rec.get("dugsu"),
+                    "dugyul": rec.get("dugyul"),
+                },
+                proposal_source=f"nec_alias_{rec['candidate_type']}",
+                hanja_name=rec.get("hanja_name"),
+                birthday=rec.get("birthday"),
+                external_id=rec.get("huboid"),
+                external_id_type="huboid",
+                political_tier=tier,
+                peak_political_tier=tier,
+                registered_as_candidate=1,
+                current_party_name=rec.get("jd_name"),
+            ))
+
     def _build_edges(self, result, winners, official, preliminary):
         """7 edge types: won_election, candidate_in, preliminary_candidate_in,
         member_of_party, withdrew_from, deceased_during_election, invalidated.
         """
-        # winners
+        # winners — NEC = deterministic so strength=1.0, confidence=1.0
         for w in winners:
             person_id = _canonical_id(w)
             election_id = f"election_{w['sg_id']}_{w['sg_typecode']}"
@@ -531,6 +596,9 @@ class NecAdapter:
                     "dugyul": w.get("dugyul"),
                     "source": "nec_winner",
                 },
+                # Schema v2
+                election_id=election_id,
+                strength=1.0, confidence=1.0,
             ))
             if w.get("jd_name"):
                 party_id = f"party_{_normalize(w['jd_name'])}"
@@ -539,6 +607,8 @@ class NecAdapter:
                     edge_type="member_of_party", ts=ts,
                     metadata={"election_context": w["sg_id"],
                               "source": "nec_winner"},
+                    election_id=election_id,
+                    strength=1.0, confidence=1.0,
                 ))
 
         # official + preliminary candidates → status-driven edge_type
@@ -555,6 +625,9 @@ class NecAdapter:
                 edge_type = ("preliminary_candidate_in"
                              if ctype == "preliminary"
                              else "candidate_in")
+            # Withdrawn / 사망 / 등록무효 — relationship still recorded
+            # but strength reflects the abridged outcome.
+            edge_strength = 0.5 if status in ("사퇴", "사망", "등록무효") else 1.0
             result.edges.append(IngestedEdge(
                 src_actor_id=person_id, dst_actor_id=election_id,
                 edge_type=edge_type, ts=ts,
@@ -568,6 +641,8 @@ class NecAdapter:
                     "candidate_type": ctype,
                     "source": f"nec_{ctype}_candidate",
                 },
+                election_id=election_id,
+                strength=edge_strength, confidence=1.0,
             ))
             if c.get("jd_name"):
                 party_id = f"party_{_normalize(c['jd_name'])}"
@@ -578,6 +653,8 @@ class NecAdapter:
                         "election_context": c["sg_id"],
                         "source": f"nec_{ctype}_candidate",
                     },
+                    election_id=election_id,
+                    strength=edge_strength, confidence=1.0,
                 ))
 
     def _build_variables(self, result, winners, official, preliminary):
@@ -649,15 +726,47 @@ class NecAdapter:
             ))
 
     def _build_events(self, result, official, preliminary):
-        """Lifecycle events for candidates with regdate (예비후보자 + 진행 중)."""
+        """Lifecycle events for candidates with regdate (예비후보자 + 진행 중).
+
+        Schema v2: each event carries primary_actor_id (the canonical
+        politician), event_subtype, and impact_magnitude. actor_targets
+        spreads the event impact to the party and election (downstream
+        adapters that score market reactions read these). Magnitudes
+        are seed estimates — coarse but better than 0.
+        """
+        # impact magnitude per status (event-level intensity)
+        _impact_for_status = {
+            "등록": 0.3,
+            "사퇴": 0.5,
+            "사망": 0.8,
+            "등록무효": 0.6,
+        }
         for c in preliminary + official:
             if not c.get("regdate"):
                 continue
             ts = _parse_yyyymmdd(c["regdate"])
             if not ts:
                 continue
+            status = c.get("status") or "등록"
             template_id = _STATUS_TO_TEMPLATE.get(
-                c.get("status") or "등록", "candidate_status_unknown")
+                status, "candidate_status_unknown")
+            primary_actor_id = _canonical_id(c)
+            election_id = f"election_{c['sg_id']}_{c['sg_typecode']}"
+            party_id = (
+                f"party_{_normalize(c['jd_name'])}"
+                if c.get("jd_name") else None
+            )
+
+            targets = [
+                {"actor_id": election_id, "magnitude": 0.1,
+                 "interpretation": f"election_{status}"},
+            ]
+            if party_id:
+                targets.append({
+                    "actor_id": party_id, "magnitude": 0.2,
+                    "interpretation": f"party_member_{status}",
+                })
+
             result.raw_events.append(IngestedRawEvent(
                 template_id=template_id,
                 ts=ts,
@@ -668,10 +777,15 @@ class NecAdapter:
                     "sg_id": c["sg_id"],
                     "sg_typecode": c["sg_typecode"],
                     "sgg_name": c.get("sgg_name"),
-                    "status": c.get("status"),
+                    "status": status,
                     "candidate_type": c["candidate_type"],
                     "source": "nec_candidate_lifecycle",
                 },
+                # Schema v2
+                primary_actor_id=primary_actor_id,
+                event_subtype=template_id,
+                impact_magnitude=_impact_for_status.get(status, 0.3),
+                actor_targets=targets,
             ))
 
     # ---- top-level ----

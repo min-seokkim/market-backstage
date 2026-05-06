@@ -1,0 +1,16 @@
+# Party position → boost. Only applies when current_party_name is a
+# 거대정당 at the relevant timestamp; otherwise treat as no boost.
+party_positions:
+  대표: 1
+  당대표: 1
+  공동대표: 1
+  원내대표: 1
+  정책위의장: 2
+  사무총장: 2
+  최고위원: 2
+  전국위원장: 2
+  지명직최고위원: 2
+  시도당위원장: 3
+  광역시도당위원장: 3
+  지구당위원장: 4
+  당원: 5

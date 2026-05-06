@@ -46,6 +46,7 @@ from dotenv import load_dotenv
 
 from . import (IngestedActor, IngestedEdge, IngestedRawEvent,
                IngestedVariable, IngestResult)
+from persistence.tier import compute_economic_tier
 
 load_dotenv()
 log = logging.getLogger(__name__)
@@ -503,11 +504,17 @@ class FtcAdapter:
                 proposal_source="ftc_appnGroup",
             ))
 
-        # 2) owners
+        # 2) owners — economic_tier from compute_economic_tier (5대 = 1)
         for g in groups:
             owner = g.get("smer_nm")
             if not owner or not g.get("unity_grup_code"):
                 continue
+            group_name = g["unity_grup_nm"]
+            owner_econ_tier = compute_economic_tier(
+                corp_position="owner",
+                corp_group=group_name,
+                year=g.get("year"),
+            )
             if _is_likely_organization(owner):
                 add(IngestedActor(
                     actor_id=f"org_owner_{_normalize(owner)}",
@@ -515,22 +522,32 @@ class FtcAdapter:
                     type_="organization",
                     category="reference_chaebol_owner_org",
                     identity={"kind": "chaebol_owner_org",
-                              "group_name": g["unity_grup_nm"],
+                              "group_name": group_name,
                               "group_code": g["unity_grup_code"],
                               "year": g["year"]},
                     proposal_source="ftc_appnGroup",
+                    # Schema v2
+                    economic_tier=owner_econ_tier,
+                    peak_economic_tier=owner_econ_tier,
+                    current_corp_position="owner",
+                    current_corp_group=group_name,
                 ))
             else:
-                pid = _make_person_seed_id(owner, g["unity_grup_nm"])
+                pid = _make_person_seed_id(owner, group_name)
                 add(IngestedActor(
                     actor_id=pid, name=owner,
                     type_="person",
                     category="reference_chaebol_owner",
                     identity={"kind": "chaebol_owner",
-                              "group_name": g["unity_grup_nm"],
+                              "group_name": group_name,
                               "group_code": g["unity_grup_code"],
                               "year": g["year"]},
                     proposal_source="ftc_appnGroup",
+                    # Schema v2
+                    economic_tier=owner_econ_tier,
+                    peak_economic_tier=owner_econ_tier,
+                    current_corp_position="owner",
+                    current_corp_group=group_name,
                 ))
 
         # ownership lookup for company metadata
@@ -563,9 +580,31 @@ class FtcAdapter:
                     "year": c["year"],
                 },
                 proposal_source="ftc_affiliation",
+                # Schema v2
+                external_id=jurirno,
+                external_id_type="jurirno",
+                current_corp_group=c.get("unity_grup_nm"),
             ))
 
-        # 4) executives → role_instance + underlying person
+        # 4) executives → role_instance + underlying person.
+        # Map FTC ofcps_nm (e.g. "회장", "대표이사", "사외이사(해당없음)")
+        # → tier compute key. Tier compute returns None for unmapped roles
+        # (e.g. 사외이사, 감사) — we leave their tier blank by design.
+        _OFCPS_TO_TIER_KEY = {
+            "회장": "회장", "부회장": "부회장",
+            "대표이사": "대표이사", "사장": "사장",
+            "부사장": "부사장",
+            "전무": "전무", "상무": "상무",
+            "이사": "이사",
+        }
+        def _ofcps_tier_key(ofcps_nm: str | None) -> str | None:
+            if not ofcps_nm:
+                return None
+            for key in _OFCPS_TO_TIER_KEY:
+                if key in ofcps_nm:
+                    return _OFCPS_TO_TIER_KEY[key]
+            return None
+
         for e in executives:
             name = e.get("exctv_nm")
             jurirno = e.get("jurirno")
@@ -576,6 +615,14 @@ class FtcAdapter:
                        f"{_normalize(name)}_"
                        f"{_normalize(e.get('ofcps_nm') or 'unknown')}_"
                        f"{e['year']}")
+            tier_key = _ofcps_tier_key(e.get("ofcps_nm"))
+            exec_econ_tier = (
+                compute_economic_tier(
+                    corp_position=tier_key,
+                    corp_group=e.get("unity_grup_nm"),
+                    year=e.get("year"),
+                ) if tier_key else None
+            )
             add(IngestedActor(
                 actor_id=role_id,
                 name=(f"{name} ({e.get('ofcps_nm') or '직위미상'} of "
@@ -593,6 +640,11 @@ class FtcAdapter:
                     "year": e["year"],
                 },
                 proposal_source="ftc_executive",
+                # Schema v2
+                economic_tier=exec_econ_tier,
+                peak_economic_tier=exec_econ_tier,
+                current_corp_position=tier_key,
+                current_corp_group=e.get("unity_grup_nm"),
             ))
             add(IngestedActor(
                 actor_id=pid, name=name,
@@ -606,6 +658,13 @@ class FtcAdapter:
                     "year": e["year"],
                 },
                 proposal_source="ftc_executive",
+                # Schema v2 — underlying person carries best-seen tier as
+                # peak. dedup at upsert layer means later (higher-tier)
+                # appearances overwrite earlier rows.
+                economic_tier=exec_econ_tier,
+                peak_economic_tier=exec_econ_tier,
+                current_corp_position=tier_key,
+                current_corp_group=e.get("unity_grup_nm"),
             ))
 
         # 5) shareholders (skip 자기주식 / 기타 — those become company metadata only)
@@ -652,7 +711,7 @@ class FtcAdapter:
             if g.get("smer_nm") and g.get("unity_grup_nm"):
                 owner_lookup[(g["unity_grup_nm"], g["year"])] = g["smer_nm"]
 
-        # 1) company → group (subsidiary_of)
+        # 1) company → group (subsidiary_of) — deterministic = 1.0/1.0
         for c in companies:
             jurirno = c.get("jurirno")
             if not jurirno:
@@ -667,9 +726,10 @@ class FtcAdapter:
                 ts=datetime(c["year"], 5, 1, tzinfo=timezone.utc),
                 metadata={"joined_date": c.get("grinil"),
                           "source": "ftc_affiliation"},
+                strength=1.0, confidence=1.0,
             ))
 
-        # 2) owner → group (owns)
+        # 2) owner → group (owns) — deterministic
         for g in groups:
             owner = g.get("smer_nm")
             if not owner or not g.get("unity_grup_code"):
@@ -684,9 +744,10 @@ class FtcAdapter:
                 edge_type="owns",
                 ts=datetime(g["year"], 5, 1, tzinfo=timezone.utc),
                 metadata={"role": "총수", "source": "ftc_appnGroup"},
+                strength=1.0, confidence=1.0,
             ))
 
-        # 3) executive → company (executive_of)
+        # 3) executive → company (executive_of) — official appointment
         for e in executives:
             name = e.get("exctv_nm")
             jurirno = e.get("jurirno")
@@ -701,9 +762,10 @@ class FtcAdapter:
                 metadata={"position": e.get("ofcps_nm"),
                           "relation_to_owner": e.get("smer_relate_nm"),
                           "source": "ftc_executive"},
+                strength=1.0, confidence=1.0,
             ))
 
-        # 4 + 5) shareholder_of, family_relation
+        # 4 + 5) shareholder_of (strength = ownership_pct/100), family_relation
         for s in shareholders:
             name = s.get("shrholdr_nm")
             jurirno = s.get("jurirno")
@@ -720,6 +782,12 @@ class FtcAdapter:
                 src = _make_person_seed_id(
                     name, s.get("unity_grup_nm", ""))
 
+            ownership_pct = _parse_float_or_none(s.get("all_qota_rate"))
+            # ★ ownership stake naturally maps to relationship strength
+            strength = (
+                max(0.0, min(1.0, ownership_pct / 100.0))
+                if ownership_pct is not None else None
+            )
             result.edges.append(IngestedEdge(
                 src_actor_id=src,
                 dst_actor_id=f"org_chaebol_company_{jurirno}",
@@ -727,10 +795,10 @@ class FtcAdapter:
                 ts=datetime(s["year"], 5, 1, tzinfo=timezone.utc),
                 metadata={
                     "shareholder_class": s.get("shrholdr_se"),
-                    "ownership_pct": _parse_float_or_none(
-                        s.get("all_qota_rate")),
+                    "ownership_pct": ownership_pct,
                     "source": "ftc_stockholder",
                 },
+                strength=strength, confidence=1.0,
             ))
 
             if cat == "family":
@@ -748,6 +816,7 @@ class FtcAdapter:
                                         tzinfo=timezone.utc),
                             metadata={
                                 "source": "ftc_stockholder_family"},
+                            strength=1.0, confidence=1.0,
                         ))
 
     def _build_variables(self, result, groups, finances, executives,
@@ -886,23 +955,57 @@ class FtcAdapter:
                 ts=datetime(year, 5, 1, tzinfo=timezone.utc),
             ))
 
-    def _build_events(self, result, change_events):
+    def _build_events(self, result, change_events, group_lookup):
+        """Schema v2: primary_actor_id (the company being added/removed),
+        actor_targets spreads to the parent group.
+
+        Magnitudes are coarse seed values:
+          subsidiary_addition / removal — 0.4 (structural change but not crisis)
+          subsidiary_postpone           — 0.2 (administrative)
+        """
+        _impact_for_event = {
+            "subsidiary_addition": 0.4,
+            "subsidiary_removal": 0.4,
+            "subsidiary_postpone": 0.2,
+        }
         for evt in change_events:
             ts = _parse_yyyymmdd(evt.get("event_date"))
             if not ts:
                 continue
+            event_type = evt.get("event_type", "subsidiary_other")
+            jurirno = evt.get("jurirno")
+            company_actor = (
+                f"org_chaebol_company_{jurirno}" if jurirno else None
+            )
+            gcode = group_lookup.get(
+                (evt.get("unity_grup_nm"), evt.get("year"))
+            )
+            group_actor = (
+                f"org_chaebol_group_{gcode}" if gcode else None
+            )
+            targets = []
+            if group_actor:
+                targets.append({
+                    "actor_id": group_actor, "magnitude": 0.3,
+                    "interpretation": event_type,
+                })
             result.raw_events.append(IngestedRawEvent(
-                template_id=evt.get("event_type", "subsidiary_other"),
+                template_id=event_type,
                 ts=ts,
                 payload={
                     "group_name": evt.get("unity_grup_nm"),
                     "company_name": evt.get("entrprs_nm"),
-                    "jurirno": evt.get("jurirno"),
+                    "jurirno": jurirno,
                     "change_code": evt.get("change_code"),
                     "reason_code": evt.get("reason_code"),
                     "year": evt.get("year"),
                     "source": "ftc_tyAssets",
                 },
+                # Schema v2
+                primary_actor_id=company_actor,
+                event_subtype=event_type,
+                impact_magnitude=_impact_for_event.get(event_type, 0.3),
+                actor_targets=targets if targets else None,
             ))
 
     # ---- top-level ----
@@ -959,6 +1062,14 @@ class FtcAdapter:
                     log.warning("ftc: %s %s network error (%s)",
                                 label, ym, e)
 
+        # Build group lookup once — events also need it for primary_actor_id
+        # resolution (avoid duplicating the table-walk in _build_events).
+        group_lookup = {
+            (g["unity_grup_nm"], g["year"]): g["unity_grup_code"]
+            for g in all_groups
+            if g.get("unity_grup_nm") and g.get("unity_grup_code")
+        }
+
         self._build_actors(result, all_groups, all_companies,
                            all_executives, all_shareholders)
         self._build_edges(result, all_companies, all_executives,
@@ -966,7 +1077,7 @@ class FtcAdapter:
         self._build_variables(result, all_groups, all_finances,
                               all_executives, all_shareholders,
                               all_inner_quotas, all_circular)
-        self._build_events(result, all_change_events)
+        self._build_events(result, all_change_events, group_lookup)
 
         log.info("ftc: done — actors=%d, vars=%d, events=%d, edges=%d, "
                  "calls=%d, elapsed=%ds",

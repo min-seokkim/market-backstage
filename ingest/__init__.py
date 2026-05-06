@@ -75,6 +75,11 @@ class IngestedRawEvent:
     payload: dict
     severity: float | None = None
     source_doc_idx: int | None = None
+    # ==== Schema v2 ====
+    primary_actor_id: str | None = None
+    event_subtype: str | None = None
+    impact_magnitude: float | None = None    # 0~1 event-level intensity
+    actor_targets: list | None = None        # [{actor_id, magnitude, interpretation?}, ...]
 
 
 @dataclass
@@ -92,6 +97,22 @@ class IngestedActor:
     status: str = "active"                # FTC = authoritative, not "proposed"
     proposal_source: str | None = None
     sources: list = field(default_factory=list)
+    # ==== Schema v2 hot fields ====
+    hanja_name: str | None = None
+    birthday: str | None = None             # YYYYMMDD
+    external_id: str | None = None
+    external_id_type: str | None = None     # 'huboid'|'jurirno'|'mona_cd'|'naas_cd'
+    political_tier: int | None = None
+    economic_tier: int | None = None
+    peak_political_tier: int | None = None
+    peak_economic_tier: int | None = None
+    registered_as_candidate: int = 0
+    current_governance_position: str | None = None
+    current_party_position: str | None = None
+    current_party_name: str | None = None
+    current_corp_position: str | None = None
+    current_corp_group: str | None = None
+    tier_history_json: str | None = None
 
 
 @dataclass
@@ -103,6 +124,10 @@ class IngestedEdge:
     edge_type: str
     ts: datetime
     metadata: dict = field(default_factory=dict)
+    # ==== Schema v2 ====
+    election_id: str | None = None
+    strength: float | None = None     # 0~1 relationship intensity
+    confidence: float | None = None   # 0~1 observer confidence
 
 
 @dataclass
@@ -209,7 +234,11 @@ def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
                 doc_id = doc_ids[ev.source_doc_idx] if ev.source_doc_idx is not None and ev.source_doc_idx < len(doc_ids) else None
                 db.insert_raw_event(con, template_id=ev.template_id,
                                     ts=_iso(ev.ts), payload=ev.payload,
-                                    source_doc_id=doc_id, severity=ev.severity)
+                                    source_doc_id=doc_id, severity=ev.severity,
+                                    primary_actor_id=ev.primary_actor_id,
+                                    event_subtype=ev.event_subtype,
+                                    impact_magnitude=ev.impact_magnitude,
+                                    actor_targets=ev.actor_targets)
                 events += 1
 
             # PR4-FTC: actors_dyn / edges_dyn bulk ingest. Adapters that
@@ -225,6 +254,22 @@ def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
                     status=a.status,
                     proposal_source=a.proposal_source,
                     proposed_by=adapter.name,
+                    # Schema v2 hot fields
+                    hanja_name=a.hanja_name,
+                    birthday=a.birthday,
+                    external_id=a.external_id,
+                    external_id_type=a.external_id_type,
+                    political_tier=a.political_tier,
+                    economic_tier=a.economic_tier,
+                    peak_political_tier=a.peak_political_tier,
+                    peak_economic_tier=a.peak_economic_tier,
+                    registered_as_candidate=a.registered_as_candidate,
+                    current_governance_position=a.current_governance_position,
+                    current_party_position=a.current_party_position,
+                    current_party_name=a.current_party_name,
+                    current_corp_position=a.current_corp_position,
+                    current_corp_group=a.current_corp_group,
+                    tier_history_json=a.tier_history_json,
                 )
                 actors_n += 1
 
@@ -237,6 +282,10 @@ def run_adapter(con, adapter: Adapter, since: datetime) -> dict[str, int]:
                     edge_type=edge.edge_type,
                     ts=ts_iso,
                     metadata=edge.metadata or None,
+                    # Schema v2
+                    election_id=edge.election_id,
+                    strength=edge.strength,
+                    confidence=edge.confidence,
                 )
                 edges_n += 1
 

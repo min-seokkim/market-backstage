@@ -9,11 +9,53 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+import unicodedata
 from pathlib import Path
 from typing import Any
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "world.db"
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
+
+
+# ---- NFKC defense in depth (Schema v2) ------------------------------------
+# NEC API returns CJK Compatibility Ideographs (e.g. 李 = U+F9E1) instead
+# of the canonical Unified form (U+674E). Comparing raw stored values
+# against query inputs (or against FTC-sourced hanja, which uses Unified)
+# silently fails — see PR-DASHBOARD-v0 "Lee Jaemyung 0 hits" finding.
+# Schema v2 fixes this at *every persist boundary*: ingest helpers
+# normalize every string + nested JSON via NFKC before INSERT. Query-time
+# normalization in the dashboard (`con.create_function("nfkc", ...)`)
+# stays in place as a defensive backstop.
+
+_CJK_COMPAT_LO = 0xF900
+_CJK_COMPAT_HI = 0xFAFF
+
+
+def nfkc(s: Any) -> Any:
+    """NFKC-normalize a string (None / non-str pass through)."""
+    if s is None or not isinstance(s, str):
+        return s
+    return unicodedata.normalize("NFKC", s)
+
+
+def nfkc_recursive(obj: Any) -> Any:
+    """Walk a dict/list/tuple structure, NFKC-normalizing every string."""
+    if isinstance(obj, str):
+        return unicodedata.normalize("NFKC", obj)
+    if isinstance(obj, dict):
+        return {k: nfkc_recursive(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [nfkc_recursive(v) for v in obj]
+    if isinstance(obj, tuple):
+        return tuple(nfkc_recursive(v) for v in obj)
+    return obj
+
+
+def has_compat_codepoint(s: Any) -> bool:
+    """True if a string contains any CJK Compatibility Ideograph (U+F900-U+FAFF)."""
+    if not isinstance(s, str):
+        return False
+    return any(_CJK_COMPAT_LO <= ord(c) <= _CJK_COMPAT_HI for c in s)
 
 
 def connect(path: Path | str = DB_PATH) -> sqlite3.Connection:

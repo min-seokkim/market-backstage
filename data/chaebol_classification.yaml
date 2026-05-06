@@ -1,0 +1,104 @@
+# Chaebol group ranking — coarse partition.
+#   1 = 5대 (top 5)
+#   2 = 6~30대
+#   3 = 31~50대
+#   4 = 51~100대
+#   5 = 100대 외 (default for unmapped)
+#
+# Group names match FTC OpenAPI `unityGrupNm` exactly. `default` table
+# covers most years; year-specific overrides can be added under
+# `rankings.<year>` if (rare) historical reordering happens.
+rankings:
+  default:
+    # ---- 1: 5대 ----
+    # FTC API returns Korean transliterations for English-named groups
+    # (SK → 에스케이, LG → 엘지). We map both forms to tier 1.
+    삼성: 1
+    SK: 1
+    에스케이: 1
+    현대자동차: 1
+    LG: 1
+    엘지: 1
+    롯데: 1
+    # ---- 2: 6~30대 ----
+    포스코: 2
+    한화: 2
+    GS: 2
+    HD현대: 2
+    신세계: 2
+    CJ: 2
+    한진: 2
+    카카오: 2
+    LS: 2
+    DL: 2
+    중흥건설: 2
+    부영: 2
+    미래에셋: 2
+    네이버: 2
+    현대백화점: 2
+    HMM: 2
+    KT: 2
+    OCI: 2
+    효성: 2
+    영풍: 2
+    하림: 2
+    호반건설: 2
+    교보생명보험: 2
+    KT&G: 2
+    에스오일: 2
+    두산: 2
+    DB: 2
+    농협: 2
+    BGF: 2
+    # ---- 3: 31~50대 ----
+    엘에스: 3
+    셀트리온: 3
+    동국제강: 3
+    코오롱: 3
+    이랜드: 3
+    아모레퍼시픽: 3
+    한국GM: 3
+    동원: 3
+    SM: 3
+    태광: 3
+    세아: 3
+    대방건설: 3
+    크래프톤: 3
+    중앙: 3
+    에코프로: 3
+    오케이금융그룹: 3
+    한국타이어: 3
+    DN: 3
+    삼천리: 3
+    금호아시아나: 3
+    # ---- 4: 51~100대 ----
+    장금상선: 4
+    글로벌세아: 4
+    한일홀딩스: 4
+    유진: 4
+    심팩: 4
+    동성: 4
+    KG: 4
+    농심: 4
+    삼양: 4
+    OK금융그룹: 4
+    아이에스지주: 4
+    원익: 4
+    영원: 4
+    BS: 4
+    엠디엠: 4
+    엠피씨씨: 4
+    HL: 4
+    하이트진로: 4
+    동양: 4
+    애경: 4
+    한솔: 4
+    삼표: 4
+    국방과학연구소: 4
+    엠피씨파트너스: 4
+    아주: 4
+    호반: 4
+    SK해운: 4
+    화승: 4
+    농업협동조합중앙회: 4
+    수협: 4
