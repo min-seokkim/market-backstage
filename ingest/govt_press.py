@@ -125,7 +125,7 @@ class GovtPressAdapter:
 
 
 def main():
-    import db as _db
+    import persistence as _db
     p = argparse.ArgumentParser()
     p.add_argument("--since", default=None)
     p.add_argument("--ministry", action="append", default=None)

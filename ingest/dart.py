@@ -145,7 +145,7 @@ def main():
     else:
         since = datetime.now(timezone.utc) - timedelta(days=7)
 
-    import db as _db
+    import persistence as _db
     con = _db.init()
     res = run_adapter(con, DartAdapter(), since)
     print(f"DART: {res}")

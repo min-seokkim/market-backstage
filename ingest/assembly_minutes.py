@@ -108,7 +108,7 @@ def should_fetch_full_minutes(
 
 def collect_active_event_keywords(con) -> list[str]:
     """Pull every 'keywords' list out of the active event templates' detection JSON."""
-    import db as _db
+    import persistence as _db
     out: set[str] = set()
     for e in _db.fetch_active_event_templates(con):
         for kw in (e.get("detection") or {}).get("keywords") or []:
@@ -119,7 +119,7 @@ def collect_active_event_keywords(con) -> list[str]:
 
 def collect_catalog_actor_names(con) -> list[str]:
     """Pull canonical actor display names + identity keywords from the dynamic registry."""
-    import db as _db
+    import persistence as _db
     out: set[str] = set()
     for a in _db.fetch_active_actors_dyn(con):
         if a.get("name"):

@@ -86,7 +86,7 @@ class BokEcosAdapter:
 
 
 def main():
-    import db as _db
+    import persistence as _db
     p = argparse.ArgumentParser()
     p.add_argument("--since", default=None)
     args = p.parse_args()

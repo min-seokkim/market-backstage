@@ -295,7 +295,7 @@ class NewsAdapter:
 
 
 def main():
-    import db as _db
+    import persistence as _db
     p = argparse.ArgumentParser()
     p.add_argument("--since", default=None)
     p.add_argument("--max", type=int, default=5)

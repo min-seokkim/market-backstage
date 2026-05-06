@@ -548,10 +548,9 @@ def main():
         con.close()
         return
 
-    # Legacy normal-fetch path. The `import db as _db` below is broken
-    # across many CLI mains — fix tracked in a separate PR. We keep it
-    # untouched here to honor PR boundary.
-    import db as _db
+    # Legacy normal-fetch path. Use the real persistence package so this
+    # CLI entrypoint also works when invoked directly.
+    import persistence as _db
     since = (datetime.fromisoformat(args.since).replace(tzinfo=timezone.utc)
              if args.since
              else datetime.now(timezone.utc) - timedelta(days=14))

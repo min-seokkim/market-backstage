@@ -1,7 +1,7 @@
 """End-to-end demo — Phase 1~5 통합.
 
 흐름:
-  1. DB 초기화 (fresh)
+  1. DB 유지 또는 초기화 (--fresh 명시 시)
   2. World.prepare(): ingest → calibration → actor build → connect →
      signal/shock 주입 → causal 전파
   3. 외생 충격 1개 inject (예: 미 상무부 한국 반도체 추가 제재)
@@ -51,10 +51,10 @@ def main():
                    help="days of history for actor calibration "
                         "(narrower than ingest window so calibration "
                         "reflects current stance, not 1y-ago behavior)")
-    p.add_argument("--fresh", action="store_true", default=True,
-                   help="recreate DB from scratch (default true)")
+    p.add_argument("--fresh", action="store_true", default=False,
+                   help="recreate DB from scratch (default keeps existing DB)")
     p.add_argument("--keep-db", dest="fresh", action="store_false",
-                   help="keep existing DB rows (additive ingest)")
+                   help="deprecated, redundant: keep existing DB rows (default)")
     p.add_argument("--shock-severity", type=float, default=0.75)
     p.add_argument("--rebuild-assembly-summaries", action="store_true",
                    help="(one-off) backfill BPMBILLSUMMARY into existing "
