@@ -64,6 +64,9 @@ from .canonical import (
     fuzzy_match_cross_sector,
     discover_from_documents,
     llm_cost_remaining,
+    # PR-PARTY-CANONICAL
+    bootstrap_party_canonical_from_actors,
+    resolve_party_canonical,
 )
 
 __all__ = [
@@ -99,4 +102,6 @@ __all__ = [
     "bootstrap_from_yaml", "resolve_org_canonical", "update_trust_score",
     "llm_generate_chaebol_aliases", "fuzzy_match_cross_sector",
     "discover_from_documents", "llm_cost_remaining",
+    # PR-PARTY-CANONICAL
+    "bootstrap_party_canonical_from_actors", "resolve_party_canonical",
 ]

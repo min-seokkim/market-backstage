@@ -1,4 +1,4 @@
-"""PR4-CANONICAL — 15 health checks on the live DB.
+"""PR4-CANONICAL + PR-PARTY-CANONICAL — 18 health checks on the live DB.
 
 Run via `python -m scripts.verify_canonical`. Exit 0 if all pass,
 1 if any fail. Designed for CI + manual post-retrofit verification.
@@ -251,6 +251,56 @@ def check_14_resolve_org_canonical_top5_chaebol(con):
             not bad, "; ".join(bad[:5]) if bad else "all 10 pairs OK")
 
 
+def check_16_party_canonical_bootstrap(con):
+    """PR-PARTY-CANONICAL — every party_* actor has actor_canonical_links row."""
+    party_actors = con.execute(
+        "SELECT COUNT(*) FROM actors_dyn "
+        "WHERE category = 'reference_political_party'"
+    ).fetchone()[0]
+    canonical_party = con.execute(
+        "SELECT COUNT(*) FROM actor_canonical_links "
+        "WHERE canonical_type = 'party'"
+    ).fetchone()[0]
+    _record(16, "party canonical bootstrap",
+            canonical_party >= party_actors,
+            f"party_actors: {party_actors}, "
+            f"canonical_party: {canonical_party}")
+
+
+def check_17_actors_party_coverage(con):
+    """PR-PARTY-CANONICAL — actors_dyn current_party_name 박힌 row 중
+    canonical_party_id 또는 is_independent 박혔는지 ≥99% coverage."""
+    total = con.execute(
+        "SELECT COUNT(*) FROM actors_dyn "
+        "WHERE current_party_name IS NOT NULL"
+    ).fetchone()[0]
+    if total == 0:
+        _record(17, "actors party coverage",
+                False, "no actors with current_party_name")
+        return
+    covered = con.execute(
+        "SELECT COUNT(*) FROM actors_dyn "
+        "WHERE current_party_name IS NOT NULL "
+        "  AND (canonical_party_id IS NOT NULL OR is_independent = 1)"
+    ).fetchone()[0]
+    pct = covered / total * 100
+    _record(17, "actors party coverage",
+            pct >= 99.0,
+            f"{covered:,} / {total:,} ({pct:.2f}%)")
+
+
+def check_18_independent_handling(con):
+    """PR-PARTY-CANONICAL — 무소속 actor 모두 is_independent=1 +
+    canonical_party_id IS NULL."""
+    bad = con.execute(
+        "SELECT COUNT(*) FROM actors_dyn "
+        "WHERE current_party_name = '무소속' "
+        "  AND (canonical_party_id IS NOT NULL OR is_independent != 1)"
+    ).fetchone()[0]
+    _record(18, "independent handling correct",
+            bad == 0, f"violating rows: {bad}")
+
+
 def check_15_baseline_counts_unchanged(con):
     """C1~C5 retrofit이 기존 baseline 깨지 않았어야."""
     n_actors = con.execute("SELECT COUNT(*) FROM actors_dyn").fetchone()[0]
@@ -294,19 +344,23 @@ def main() -> int:
         check_13_chaebol_aliases_nfkc(con)
         check_14_resolve_org_canonical_top5_chaebol(con)
         check_15_baseline_counts_unchanged(con)
+        check_16_party_canonical_bootstrap(con)
+        check_17_actors_party_coverage(con)
+        check_18_independent_handling(con)
     finally:
         con.close()
 
     n_pass = sum(1 for c in CHECKS if c["passed"])
     print()
     print("-" * 60)
-    for c in CHECKS:
+    for c in sorted(CHECKS, key=lambda c: c["id"]):
         flag = "PASS" if c["passed"] else "FAIL"
         print(f"[{flag}] {c['id']:02d}. {c['name']}")
         if c["detail"]:
             print(f"        {c['detail']}")
     print("-" * 60)
-    print(f"PR4-CANONICAL Health: {n_pass} / {len(CHECKS)}")
+    print(f"PR4-CANONICAL + PR-PARTY-CANONICAL Health: "
+          f"{n_pass} / {len(CHECKS)}")
     return 0 if n_pass == len(CHECKS) else 1
 
 

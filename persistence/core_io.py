@@ -162,6 +162,85 @@ def _apply_idempotent_migrations(con: sqlite3.Connection) -> None:
         "WHERE canonical_org_id IS NOT NULL"
     )
 
+    # PR-PARTY-CANONICAL: actors_dyn.canonical_party_id + is_independent.
+    # SQLite ALTER ADD COLUMN can't add a CHECK; the constraint on
+    # is_independent (0/1) is application-validated for upgraded DBs and
+    # CREATE-enforced for fresh DBs (see schema.sql).
+    if "canonical_party_id" not in cols:
+        con.execute(
+            "ALTER TABLE actors_dyn ADD COLUMN canonical_party_id TEXT"
+        )
+    if "is_independent" not in cols:
+        con.execute(
+            "ALTER TABLE actors_dyn ADD COLUMN is_independent "
+            "INTEGER NOT NULL DEFAULT 0"
+        )
+    con.execute(
+        "CREATE INDEX IF NOT EXISTS idx_actors_dyn_canonical_party "
+        "ON actors_dyn(canonical_party_id) "
+        "WHERE canonical_party_id IS NOT NULL"
+    )
+    con.execute(
+        "CREATE INDEX IF NOT EXISTS idx_actors_dyn_is_independent "
+        "ON actors_dyn(is_independent) WHERE is_independent = 1"
+    )
+
+    # PR-PARTY-CANONICAL: relax actor_canonical_links.canonical_type CHECK
+    # to allow 'party'. SQLite can't ALTER a CHECK constraint — must
+    # rebuild via 12-step copy. Idempotent: only rebuild if 'party' isn't
+    # already in the CHECK clause.
+    acl_sql_row = con.execute(
+        "SELECT sql FROM sqlite_master "
+        "WHERE type='table' AND name='actor_canonical_links'"
+    ).fetchone()
+    if acl_sql_row and "'party'" not in (acl_sql_row[0] or ""):
+        con.executescript("""
+            PRAGMA foreign_keys = OFF;
+            CREATE TABLE actor_canonical_links_new (
+                canonical_id            TEXT PRIMARY KEY,
+                canonical_type          TEXT NOT NULL CHECK (canonical_type IN ('person', 'organization', 'party')),
+                name                    TEXT NOT NULL,
+                political_actor_ids     TEXT,
+                economic_actor_ids      TEXT,
+                political_roles         TEXT,
+                political_parties       TEXT,
+                economic_organizations  TEXT,
+                economic_roles          TEXT,
+                rationale               TEXT,
+                confidence              REAL CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
+                state                   TEXT NOT NULL DEFAULT 'proposed' CHECK (
+                                          state IN ('proposed', 'active', 'deprecated', 'retired')
+                                        ),
+                source                  TEXT NOT NULL,
+                verification_count      INTEGER NOT NULL DEFAULT 0,
+                last_verified_at        TEXT,
+                created_at              TEXT NOT NULL DEFAULT (datetime('now')),
+                rev_history_json        TEXT,
+                learned_attributes_json TEXT
+            );
+            INSERT INTO actor_canonical_links_new
+                SELECT canonical_id, canonical_type, name, political_actor_ids,
+                       economic_actor_ids, political_roles, political_parties,
+                       economic_organizations, economic_roles, rationale,
+                       confidence, state, source, verification_count,
+                       last_verified_at, created_at, rev_history_json,
+                       learned_attributes_json
+                FROM actor_canonical_links;
+            DROP TABLE actor_canonical_links;
+            ALTER TABLE actor_canonical_links_new RENAME TO actor_canonical_links;
+            CREATE INDEX IF NOT EXISTS idx_canonical_name
+                ON actor_canonical_links(name);
+            CREATE INDEX IF NOT EXISTS idx_canonical_type
+                ON actor_canonical_links(canonical_type);
+            CREATE INDEX IF NOT EXISTS idx_canonical_state
+                ON actor_canonical_links(state);
+            CREATE INDEX IF NOT EXISTS idx_canonical_source
+                ON actor_canonical_links(source);
+            CREATE INDEX IF NOT EXISTS idx_canonical_confidence
+                ON actor_canonical_links(confidence DESC);
+            PRAGMA foreign_keys = ON;
+        """)
+
 
 # ---- Phase 3-5 sim tables --------------------------------------------------
 

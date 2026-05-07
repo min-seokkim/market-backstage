@@ -302,6 +302,99 @@ def resolve_org_canonical(con: sqlite3.Connection,
 
 
 # ---------------------------------------------------------------------------
+# PR-PARTY-CANONICAL — 정당 canonical layer
+# ---------------------------------------------------------------------------
+
+def bootstrap_party_canonical_from_actors(
+    con: sqlite3.Connection, force_reseed: bool = False,
+) -> int:
+    """기존 actors_dyn의 party_* actor → actor_canonical_links 매핑.
+
+    canonical_id = party_actor.id (1:1 매핑, 새 entity 안 박음)
+    canonical_type = 'party'
+    state = 'active'  (기존 actor는 이미 검증된 정당 entity)
+    source = 'party_actor_migration'
+    confidence = 1.0
+
+    Idempotent — 박혀있으면 skip (force_reseed=True면 INSERT OR REPLACE).
+    Returns inserted/replaced count.
+    """
+    party_actors = con.execute(
+        "SELECT id, name FROM actors_dyn "
+        "WHERE category = 'reference_political_party' "
+        "   OR id LIKE 'party_%'"
+    ).fetchall()
+
+    now = _now_iso()
+    inserted = 0
+    for actor_id, name in party_actors:
+        if not force_reseed:
+            existing = con.execute(
+                "SELECT 1 FROM actor_canonical_links "
+                "WHERE canonical_id = ?",
+                (actor_id,),
+            ).fetchone()
+            if existing:
+                continue
+        normalized_name = nfkc(name or "").strip() or actor_id
+        con.execute(
+            "INSERT OR REPLACE INTO actor_canonical_links "
+            "(canonical_id, canonical_type, name, "
+            " confidence, state, source, created_at) "
+            "VALUES (?, 'party', ?, 1.0, 'active', "
+            "        'party_actor_migration', ?)",
+            (actor_id, normalized_name, now),
+        )
+        inserted += 1
+    return inserted
+
+
+def resolve_party_canonical(con: sqlite3.Connection,
+                              name: str | None) -> str | None:
+    """정당 이름 → canonical_party_id (= party_* actor id).
+
+    1. NFKC normalize + strip
+    2. '무소속' → None (caller가 is_independent 박음)
+    3. actor_canonical_links lookup (canonical_type='party'),
+       active 우선, fallback proposed, confidence DESC
+    4. fallback: party_<name> id 패턴 직접 매치
+
+    예:
+      '더불어민주당' → 'party_더불어민주당'
+      '무소속' → None
+      '존재하지않는당' → None
+    """
+    if not name:
+        return None
+    normalized = nfkc(name).strip()
+    if not normalized or normalized == "무소속":
+        return None
+
+    row = con.execute(
+        "SELECT canonical_id FROM actor_canonical_links "
+        "WHERE canonical_type = 'party' "
+        "  AND name = ? "
+        "  AND state IN ('active', 'proposed') "
+        "ORDER BY "
+        "  CASE state WHEN 'active' THEN 0 ELSE 1 END, "
+        "  COALESCE(confidence, 0) DESC "
+        "LIMIT 1",
+        (normalized,),
+    ).fetchone()
+    if row:
+        return row[0]
+
+    candidate_id = f"party_{normalized}"
+    row = con.execute(
+        "SELECT canonical_id FROM actor_canonical_links "
+        "WHERE canonical_id = ? AND canonical_type = 'party' "
+        "LIMIT 1",
+        (candidate_id,),
+    ).fetchone()
+    return row[0] if row else None
+
+
+# ---------------------------------------------------------------------------
 # Trust accrual · state transition
 # ---------------------------------------------------------------------------
 

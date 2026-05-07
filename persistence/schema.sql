@@ -268,7 +268,14 @@ CREATE TABLE IF NOT EXISTS actors_dyn (
     -- chaebol_owner / executive actors carry canonical_org_id resolved via
     -- chaebol_aliases_state, so '에스케이' / 'SK' / 'ìì¤ì¼ì´' all
     -- collapse onto org_chaebol_sk. Backfilled by PR4-CANONICAL retrofit.
-    canonical_org_id         TEXT
+    canonical_org_id         TEXT,
+    -- ==== PR-PARTY-CANONICAL: 정당 canonical reference ====
+    -- person actors carry canonical_party_id (FK to actor_canonical_links
+    -- canonical_type='party') resolved from current_party_name.
+    -- 무소속 → canonical_party_id IS NULL AND is_independent=1.
+    canonical_party_id       TEXT,
+    is_independent           INTEGER NOT NULL DEFAULT 0
+        CHECK(is_independent IN (0, 1))
 );
 
 -- ==== PR-Z: actor-actor relationship edges (separate from causal_edges_dyn,
@@ -661,7 +668,7 @@ CREATE INDEX IF NOT EXISTS idx_actor_journal_event_type
 -- learned_attributes_json에 박혀, schema migration 없이 evolution 가능.
 CREATE TABLE IF NOT EXISTS actor_canonical_links (
     canonical_id            TEXT PRIMARY KEY,           -- e.g. 'person_canonical_정몽준_001' / 'org_chaebol_samsung'
-    canonical_type          TEXT NOT NULL CHECK (canonical_type IN ('person', 'organization')),
+    canonical_type          TEXT NOT NULL CHECK (canonical_type IN ('person', 'organization', 'party')),
     name                    TEXT NOT NULL,
     political_actor_ids     TEXT,                        -- JSON list — NEC·ASSEMBLY linked actor IDs
     economic_actor_ids      TEXT,                        -- JSON list — FTC·DART linked actor IDs
@@ -861,7 +868,7 @@ CREATE INDEX IF NOT EXISTS idx_assembly_state_canonical
     ON assembly_member_state(canonical_id);
 
 
--- actors_dyn.canonical_org_id partial index — created in
--- _apply_idempotent_migrations (must run AFTER the ALTER ADD COLUMN
--- on existing v0 DBs; otherwise index creation fails on a non-existent
--- column during executescript).
+-- actors_dyn.canonical_org_id / canonical_party_id partial indexes —
+-- created in _apply_idempotent_migrations (must run AFTER the ALTER ADD
+-- COLUMN on existing v0 DBs; otherwise index creation fails on a
+-- non-existent column during executescript).
