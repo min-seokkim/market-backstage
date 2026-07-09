@@ -51,6 +51,12 @@
 
 공개 repository에는 live DB가 포함되지 않습니다. `scripts/verify_*`는 DB를 재구축했거나 별도로 보유한 로컬 환경에서 쓰는 operator check입니다.
 
+### 공개 history
+
+이 branch의 git history는 짧게 유지합니다. 과거 내부 branch에는 민감한 값이 들어간 커밋이 있으므로, GitHub 공개용 history는 clean root snapshot에서 시작합니다.
+
+사람이 읽기 쉬운 개발 흐름은 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)에 따로 정리했습니다. 실제 공개 커밋은 `git log --oneline`으로 확인합니다.
+
 ### Publish rule
 
 GitHub에는 `portfolio-freeze` branch만 push합니다. 오래된 내부 branch에는 과거 실험 파일과 민감한 값이 포함된 커밋이 있으므로 공개하지 않습니다.
@@ -107,6 +113,12 @@ On the local frozen workspace:
 - `python -m scripts.verify_canonical`: 18 / 18 on local live DB copy
 
 The public repository does not include the live DB. The `scripts/verify_*` checks are operator checks for a rebuilt or separately provided local DB.
+
+### Public history
+
+This branch keeps a deliberately short public git history. Older internal branches contain historical commits with sensitive values, so the GitHub-ready history starts from a clean root snapshot.
+
+A human-readable development flow is documented in [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md). Exact public commits can be inspected with `git log --oneline`.
 
 ### Publish rule
 

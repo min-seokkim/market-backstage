@@ -122,6 +122,16 @@ python -m scripts.verify_contract
 python -m scripts.verify_canonical
 ```
 
+### 개발 로그
+
+공개 branch의 git history는 의도적으로 짧습니다. 오래된 내부 branch에는 민감한 값이 들어간 과거 커밋이 있으므로, 포트폴리오용 repository는 `portfolio-freeze`에서 새로 시작한 clean history만 보여줍니다.
+
+대신 개발 흐름은 [docs/DEVELOPMENT_LOG.md](docs/DEVELOPMENT_LOG.md)에 정리했습니다. 실제 공개 커밋은 clone 후 다음 명령으로 확인할 수 있습니다.
+
+```bash
+git log --oneline
+```
+
 ### 공개 freeze 메모
 
 이 branch는 포트폴리오 공개용 clean snapshot입니다.
@@ -252,6 +262,16 @@ If you have rebuilt or separately provided a local live DB:
 python -m scripts.verify_db
 python -m scripts.verify_contract
 python -m scripts.verify_canonical
+```
+
+### Development log
+
+The public branch history is intentionally short. Older internal branches contain historical commits with sensitive values, so the portfolio repository starts from a clean `portfolio-freeze` history.
+
+A human-readable development log is available in [docs/DEVELOPMENT_LOG.md](docs/DEVELOPMENT_LOG.md). The exact public commits can be inspected after cloning:
+
+```bash
+git log --oneline
 ```
 
 ### Public freeze note
