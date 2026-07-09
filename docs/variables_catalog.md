@@ -1,570 +1,157 @@
-# Korea Political-Economy Quant — Variable & Event Catalog
+# Variable and Event Catalog
 
-> 이 문서는 모델링 대상 변수·이벤트의 exhaustive 카탈로그. Phase 3 actor catalog YAML, Phase 4 Bayesian network 노드, Phase 1 ingestion 스키마 설계의 *입력*. 매 변수마다 데이터 소스 + 시간 스케일을 같이 표기.
->
-> 사용자가 직접 작성한 원본 문서를 정리한 working copy. 추가·수정하면서 living document로 운영.
->
-> 핵심 원칙:
-> - 변수 100개 부정확 ❌ < 20개 정확 ✅
-> - 각 변수는 actor 결정에 매핑되어야 함. 매핑 없으면 noise.
+## 한국어
 
----
+### 문서 목적
 
-## A. 내생 변수 (Endogenous) — 한국 시스템 내부
+이 문서는 한국 정치경제 모델이 추적할 수 있는 변수와 이벤트를 정리한 catalog입니다. 모든 항목이 현재 구현되어 있다는 뜻은 아닙니다. 이 문서는 ingestion, actor modeling, Bayesian network, future Layer 2 signal design의 후보 목록입니다.
 
-### A.1 정부·청와대
+핵심 원칙은 단순합니다. 변수 100개를 부정확하게 추적하는 것보다, actor 결정에 직접 연결되는 변수 20개를 정확하게 추적하는 편이 낫습니다.
 
-| 변수 | 소스 | 시간 |
+### 변수 분류
+
+| 구분 | 예시 | 현재 구현 감각 |
 |---|---|---|
-| 대통령 지지율 | Gallup, 리얼미터, NBS | 주 |
-| 정당 지지율 (여야 + 군소) | 동일 | 주 |
-| 임기 중 위치 (1~5년차) | 계산 | 일 |
-| 차기 대선까지 잔여 시간 | 계산 | 일 |
-| 차기 대선 후보별 implied prob | 폴 + 베팅마켓 | 주 |
-| 청와대 인사이동 | 청와대 발표, 언론 | 이벤트 |
-| 장관 교체 빈도 | 인사혁신처 | 월 |
-| 거부권 행사 횟수·대상 | 청와대 | 이벤트 |
-| 시행령 제·개정 패턴 | 법제처 | 주 |
-| 사면 명단 (특히 사법 포함 여부) | 법무부 | 이벤트 (8.15, 12.31) |
-| 정상회담 빈도·상대국 | 외교부 | 이벤트 |
-| 대통령 발언 sentiment (시장·사법) | 청와대 RSS | 일 |
+| 정부/대통령 | 지지율, 거부권, 사면, 장관 교체, 정상회담 | mostly design |
+| 국회 | 의석 분포, 법안 발의/통과, 상임위, 청문회 | partial through Assembly adapter |
+| 규제기관 | 공정위, 금융위, 금감원, 국세청, 검찰, 법원 | partial through official-source scaffolding |
+| 재정/통화 | 기준금리, MPC tone, 환율, 재정수지, 세제개편 | partial through BOK/macro paths |
+| 외교/안보 | 대미/중/일/북 statement, 북한 도발, FTA, 한미 훈련 | mostly design |
+| 재벌 그룹 | 지배구조, 내부거래, 자사주, 행동주의, ESG | partial through DART/FTC/canonical layer |
+| 상장사 | valuation, 배당, 자사주, 분할, 증자, 임원 변화 | partial through DART/KRX scaffolding |
+| 재벌 가족 | 총수 연령, 자녀 직책, 지분 이전, 가족 분쟁 | mostly design |
+| 투자자 흐름 | 외국인/기관/개인 net flow, short balance, 5% filing | partial through KRX/DART plans |
+| 시장 구조 | KOSPI/KOSDAQ, 옵션 IV, 거래대금, IPO, 공매도 | partial |
+| 산업/섹터 | 반도체, 자동차, 조선, 화학, 콘텐츠, 물류 | mostly design |
+| 사회/여론 | 검색 트렌드, 여론조사, SNS, 소비자 심리 | mostly design |
+| 외생 변수 | Fed, 중국, 일본, 지정학, 글로벌 매크로 | partial through macro paths |
 
-### A.2 입법부·국회
+### 이벤트 분류
 
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 국회 의석 분포 (정당별) | 국회사무처 | 선거 후 갱신 |
-| 발의 법안 수 (분야별) | 국회 의안정보시스템 | 일 |
-| 통과 법안 수 (분야별) | 동일 | 일 |
-| 주요 법안 통과 속도 | 의안정보시스템 + 상임위 | 주 |
-| 상임위원회 위원장 직위 | 국회 | 임기 단위 |
-| 청문회 일정 (인사·정책) | 국회 | 이벤트 |
-| 강행·점거법 가결 동향 | 의안정보시스템 + 언론 | 월 |
-| 야당 패스트트랙 발의 빈도 | 동일 | 월 |
-| 국정감사 주요 의제 | 국회 | 연 (10월) |
-
-### A.3 규제 기관
-
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 공정위 의결 (재벌 친화/적대 sentiment) | 공정위 | 이벤트 |
-| 공정위 조사 착수 (대기업) | 공정위 보도자료 | 이벤트 |
-| 금융위 자본시장 정책 | 금융위 RSS | 이벤트 |
-| 금융위 공매도 정책 | 동일 | 이벤트 |
-| 산업부 보조금·인센티브 정책 | 산업부 RSS | 월 |
-| 국세청 세무조사 패턴 (재벌 타겟) | 국세청 + 언론 | 분기 |
-| 환경부 규제 강도 (배출권, 화학물질) | 환경부 | 분기 |
-| 노동부 노동법 개정 | 고용노동부 | 분기 |
-| 식약처 약가·인허가 패턴 | 식약처 | 월 |
-| 검찰 사법 수사 빈도·대상 | 검찰청 + 언론 | 월 |
-| 법원 거버넌스 판결 (특히 항소심) | 대법원·고법 | 이벤트 |
-| 금감원 검사 결과 (대형사) | 금감원 | 분기 |
-| 국세청장·검찰총장 정치적 색깔 | 인사 + 발언 분석 | 임기 단위 |
-
-### A.4 재정·통화
-
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 한은 기준금리 | 한은 | 월 (MPC) |
-| MPC 의사록 hawkish/dovish 톤 | 한은 의사록 | 월 |
-| 정부 재정수지 | 기재부 | 월 |
-| 국채 발행 계획·실적 | 기재부 | 월 |
-| 외환보유고 | 한은 | 월 |
-| 원/달러 환율 | 시장 | 일 |
-| 종합부동산세·소득세 변경 | 기재부 | 이벤트 |
-| 양도세율 변경 가능성 | 의안정보시스템 + 언론 | 월 |
-| 법인세율 변경 논의 | 동일 | 월 |
-| 부가가치세 인상 논의 | 동일 | 분기 |
-| 추경 편성 | 기재부 | 이벤트 |
-
-### A.5 외교·안보
-
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 외교부 raw statement (대미·중·일·북) | 외교부 RSS | 이벤트 |
-| 한미 동맹 강도 지수 (자체 구성) | 정상회담 + 군사 협력 + 무역 | 월 |
-| 한중 무역 갈등 강도 | 무역 통계 + 언론 | 월 |
-| 한일 외교 회담·합의 | 외교부 | 이벤트 |
-| 사드·미사일 방어 시장 변화 | 국방부 | 이벤트 |
-| FTA 협상 동향 | 산업부 | 분기 |
-| 북한 도발 빈도·강도 | 합참 + 언론 | 이벤트 |
-| 한미 연합 훈련 일정·규모 | 합참 | 분기 |
-| 한미일 3국 협력 강도 | 외교부 | 분기 |
-
-### A.6 재벌 그룹 (5대 + 한진·CJ·신세계 등)
-
-각 그룹별로 동일 변수 세트:
-
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 지주사 구조 단순화 진척도 | DART | 분기 |
-| 순환출자 잔여 비율 | DART | 분기 |
-| 일감 몰아주기 비율 (내부거래) | DART 사업보고서 | 연 |
-| 그룹 부채 비율 | DART | 분기 |
-| 그룹 현금흐름 | DART | 분기 |
-| 그룹 R&D 지출 비율 | DART | 연 |
-| 자사주 보유 비율 | DART | 분기 |
-| 그룹 내 분할·합병 빈도 | DART | 분기 |
-| Value-up Program 채택 여부 | KRX·DART | 이벤트 |
-| 외국인 평균 보유 비율 (그룹 종목) | KRX | 일 |
-| 행동주의 펀드 지정 여부 | DART 5% 보고 + 언론 | 이벤트 |
-| 의결권 분쟁 판결 결과 | 주총 결과 | 연 (3월) |
-| ESG 등급 (KCGS, MSCI Korea) | 평가기관 | 연 |
-| 이사회 독립성 (사외이사 비율) | DART | 연 |
-
-### A.7 개별 상장사 (KOSPI200 + KOSDAQ150 우선)
-
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 시가 변화율 | KRX | 일 |
-| PER, PBR, EV/EBITDA | KRX, FN가이드 | 일 |
-| 배당성향 변화 | DART | 분기 |
-| 자사주 매입·소각 | DART | 이벤트 |
-| 외국인 보유 비율 | KRX | 일 |
-| 기관 보유 비율 | KRX | 일 |
-| 신용등급 변화 | NICE, KIS | 이벤트 |
-| 신주 발행 (유상증자) | DART | 이벤트 |
-| 전환사채·BW 발행 | DART | 이벤트 |
-| 자회사 IPO 추진 | DART + 언론 | 이벤트 |
-| 물적 분할 vs 인적 분할 선택 | DART | 이벤트 |
-| 어닝 서프라이즈/쇼크 (vs 컨센서스) | 분기 실적 vs FN가이드 컨센 | 분기 |
-| 가이던스 변경 | 기업 IR | 분기 |
-| 임원 보수 패턴 | DART 사업보고서 | 연 |
-| 대주주 변경 | DART | 이벤트 |
-| 계열사 자금 거래 | DART 특수관계자 | 분기 |
-
-### A.8 재벌 가족 (Family Layer)
-
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 총수 연령 | 공개 정보 | 연 |
-| 자녀 연령 + 회사 내 직책 | DART + 언론 | 분기 |
-| 자녀 지분율 변화 | DART 5% 보고 | 이벤트 |
-| 자녀 간 지분 격차 | DART | 분기 |
-| 가족 재단·재산 구조 | DART + 공익법인 공시 | 연 |
-| 형제 분쟁 노출 (소송·언론) | 법원 사건검색 + 언론 | 이벤트 |
-| 배우자 이혼 절차 | 법원 + 언론 | 이벤트 |
-| 가족 간 주식 매매 | DART 임원 거래 | 이벤트 |
-| 사전 증여 패턴 | DART 5% 변동 | 이벤트 |
-| 해외 이주·이중국적 신고 (자녀) | 외교부, 언론 | 이벤트 |
-| 가족 회사 내 보직 변경 | DART | 이벤트 |
-| 총수 사망·와병 | 언론 | 이벤트 (드물지만 critical) |
-
-### A.9 투자자 흐름
-
-#### A.9.1 일별 매매 동향 (KRX 공개)
-
-| 변수 | 시간 |
+| 구분 | 예시 |
 |---|---|
-| 외국인 일일 net 매수 (시장 전체) | 일 |
-| 기관 net 매수 (세부: 금융투자·보험·투신·사모·연기금·국가·기타) | 일 |
-| 개인 net 매수 | 일 |
-| 프로그램 매매 net | 일 |
-| 종목별 외국인·기관·개인 net | 일 |
-| 외국인 시각 비중 | 일 |
+| Governance events | 지주사 전환, 합병, 분할, 자사주 매입/소각, 주주제안 |
+| Legal/regulatory events | 법 발효, 시행령 개정, 대법원 판결, 공정위 의결, 금감원 검사 |
+| Political events | 대선/총선, 탄핵, 정당 합당/분당, 인사청문회, 사면 |
+| Corporate events | 어닝, CEO/CFO 교체, 회계 이슈, 대규모 수주, 파업 |
+| Family events | 총수 사망/와병, 승계, 이혼, 상속 분쟁, 자녀 지분 변화 |
+| External shocks | 전쟁, 팬데믹, 원자재 공급 중단, 환율 급변, 글로벌 금융위기 |
 
-#### A.9.2 종목별 포지션
+### Latent variables
 
-| 변수 | 시간 |
+직접 관측하기 어렵지만 여러 signal로 추론해야 하는 상태도 있습니다.
+
+| 잠재 변수 | 관측 signal 예시 |
 |---|---|
-| 외국인 보유 비율 변화율 | 일 |
-| 5% 이상 보유 신고 (변동) | 이벤트 |
-| 임원·주요주주 거래 (특정 종목) | 이벤트 |
-| 공매도 잔고 (종목별) | 일 |
-| 신용잔고 (시장 전체 + 종목별) | 일 |
-| 대주잔고 | 일 |
+| 정부의 chaebol 친화도 | 사면, 세무조사 빈도, 공정위 tone, 검찰 수사 패턴 |
+| 시장 risk appetite | VIX, credit spread, 외국인 flow, 옵션 IV |
+| Korea discount factor | 한국/global PER 비교, 외국인 한국 비중, 환율 |
+| 정치 안정도 | 지지율 변동성, 정쟁 강도, 인사 교체 |
+| 승계 임박도 | 총수 연령, 자녀 직책, 지분 이전, 가족 회사 변화 |
+| 정책 변화 prior | 법안 발의, 청문회 발언, 여론조사, 정부 statement |
 
-#### A.9.3 ETF/펀드 흐름
+### 시간 스케일
 
-| 변수 | 시간 |
+| 스케일 | 변수 |
 |---|---|
-| KOSPI200 ETF 설정·환매 | 일 |
-| 섹터 ETF 흐름 (반도체, 2차전지, 바이오, AI) | 일 |
-| 인버스·레버리지 ETF 비율 | 일 |
-| ESG ETF 흐름 | 주 |
-| 액티브 ETF AUM 변화 | 주 |
-| 해외주식형 펀드 판매율 (서학개미 흐름) | 주 |
+| 일 | 공시, 거래흐름, 환율, 원자재, 뉴스 |
+| 주 | 여론조사, 정부 statement, 산업 가격 |
+| 월 | CPI, PMI, 산업생산, MPC, 사회 sentiment |
+| 분기 | GDP, 어닝, 13F, NPS 보유 변경 |
+| 연 | 선거, ESG 등급, 산업 cycle |
+| 다년 | 인구 변화, 산업 transition, governance doctrine |
 
-#### A.9.4 국민연금 (NPS)
+### 우선순위
 
-| 변수 | 시간 |
+| Priority | 내용 |
 |---|---|
-| 분기별 보유 종목 변경 | 분기 (45일 lag 공시) |
-| 의결권 행사 내역 (찬성/반대/기권) | 주총 후 공시 |
-| 책임투자 정책 변화 | 연 |
-| 해외 투자 비중 변화 | 분기 |
-| 5% 이상 보유 종목 | 분기 |
+| Tier 1 | DART, KRX, 정부 보도자료, 국회 의안, 한은, 5대 그룹, KOSPI200/KOSDAQ150 |
+| Tier 2 | 재벌 가족, NPS, 정치인 발언, 검찰/법원, 13F, 행동주의 |
+| Tier 3 | 옵션 IV, ETF flow, 검색 트렌드, 산업 micro data, 공매도 |
+| Tier 4 | 위성, 카드 데이터, 부동산 실거래, 고비용 alternative data |
 
-#### A.9.5 외국인 활동
+### 사용 원칙
 
-| 변수 | 시간 |
+- 각 변수는 어떤 actor의 어떤 의사결정에 영향을 주는지 설명할 수 있어야 합니다.
+- source가 비싸거나 불안정한 변수는 Tier 1에 넣지 않습니다.
+- 새 이벤트 카테고리는 catalog에 추가하되, 바로 구현 대상으로 간주하지 않습니다.
+- public snapshot에서는 live DB와 paid dataset을 포함하지 않습니다.
+
+---
+
+## English
+
+### Purpose
+
+This document catalogs variables and events that the Korean political-economy model may track. It does not mean every item is implemented today. The catalog is a candidate set for ingestion, actor modeling, Bayesian-network design, and future Layer 2 signal work.
+
+The core principle is simple: tracking 20 actor-linked variables accurately is better than tracking 100 variables poorly.
+
+### Variable groups
+
+| Group | Examples | Current implementation feel |
+|---|---|---|
+| Government/presidency | Approval, vetoes, pardons, cabinet changes, summits | mostly design |
+| National Assembly | Seat distribution, bills, committees, hearings | partial through Assembly adapter |
+| Regulators | FTC, FSC/FSS, tax office, prosecution, courts | partial through official-source scaffolding |
+| Fiscal/monetary | Policy rate, MPC tone, FX, fiscal balance, tax reform | partial through BOK/macro paths |
+| Diplomacy/security | US/China/Japan/North Korea statements, provocations, FTA, joint exercises | mostly design |
+| Chaebol groups | Governance, related-party transactions, treasury shares, activism, ESG | partial through DART/FTC/canonical layer |
+| Listed companies | Valuation, dividends, buybacks, splits, issuance, executive changes | partial through DART/KRX scaffolding |
+| Chaebol families | Chair age, child roles, stake transfers, family disputes | mostly design |
+| Investor flow | Foreign/institutional/retail net flow, short balance, 5% filings | partial through KRX/DART plans |
+| Market structure | KOSPI/KOSDAQ, option IV, turnover, IPOs, short selling | partial |
+| Industry/sector | Semiconductors, autos, shipbuilding, chemicals, content, logistics | mostly design |
+| Social sentiment | Search trends, polls, SNS, consumer confidence | mostly design |
+| Exogenous variables | Fed, China, Japan, geopolitics, global macro | partial through macro paths |
+
+### Event groups
+
+| Group | Examples |
 |---|---|
-| 13D/13F filings (한국 종목 보유) | 분기 (US filers) |
-| 행동주의 펀드 지정 (KCC ESG, Engine No.1, Whitebox 등) | 이벤트 |
-| MSCI Korea 비중 조정 | 분기 |
-| FTSE Korea 분류 변경 | 연 |
-| Korea ETF (EWY 등) 미국 흐름 | 일 |
+| Governance events | Holding-company conversion, merger, split, buyback/cancellation, shareholder proposal |
+| Legal/regulatory events | New laws, enforcement decrees, court decisions, FTC actions, FSS inspections |
+| Political events | Elections, impeachment, party merger/split, confirmation hearings, pardons |
+| Corporate events | Earnings, CEO/CFO change, accounting issue, major order, strike |
+| Family events | Chair death/illness, succession, divorce, inheritance dispute, child stake change |
+| External shocks | War, pandemic, supply disruption, FX shock, global financial crisis |
 
-### A.10 시장 구조
+### Latent variables
 
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| KOSPI / KOSDAQ 종합지수 | KRX | 일 |
-| KOSPI200 옵션 IV (전체 곡면) | KRX | 일 |
-| 시장 거래대금 | KRX | 일 |
-| 신규시장 IPO 규모·종목 | KRX | 이벤트 |
-| 공매도 가능 종목 비율 | KRX | 월 (지정 변경) |
-| 시간외 거래량 비중 | KRX | 일 |
-| 외국인 통합 수신율 (KT·하나 등) | KRX | 일 |
-| 선물·옵션 만기월 (네 마녀) | 분기 | 이벤트 |
-| 프로그램 매매 차익거래 비중 | KRX | 일 |
+Some states are not directly observed and must be inferred from multiple signals.
 
-### A.11 산업·섹터 (Industry endogenous)
-
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 반도체 수출 (D램·낸드 spot 가격) | DRAMeXchange, 관세청 | 주 |
-| 자동차 판매대수 (내수·수출) | 협회 + 관세청 | 월 |
-| 조선 수주 (CGT) | 클락슨 | 월 |
-| 화학 제품 spread (정유 정제 마진) | 산업부 | 주 |
-| 부동산 가격 지수 | KB·한국부동산원 | 월 |
-| 전력 사용량 (산업 활동 proxy) | 한국전력거래소 | 일 |
-| 게임·콘텐츠 글로벌 매출 | App Annie 등 | 월 |
-| 화장품·면세점 매출 (한한령 proxy) | 산업부 + 면세점 협회 | 월 |
-| 항공 여객 수 (국제선 회복도) | 국토부 항공 통계 | 월 |
-| 물류 운임 (BDI, SCFI) | Baltic, Shanghai | 일 |
-
-### A.12 사회·여론 (Social sentiment)
-
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 검색 트렌드 (네이버, 구글) - 정치·경제 키워드 | API | 일 |
-| 정치 댓글 강도 (SNS) | 자체 수집 | 일 |
-| 사회적 갈등 강도 (노동·이대·지역) | 언론 빈도 분석 | 주 |
-| 시민단체 발언 빈도 (참여연대, 경실련 등) | RSS | 주 |
-| 주요 이슈 우선순위 (사료 조사) | Gallup 등 | 월 |
-| 소비자 신뢰지수 | 한은 | 월 |
-| 청년 실업률 | 통계청 | 월 |
-| 부동산 심리 (매수·매도 우위) | KB | 월 |
-
----
-
-## B. 외생 변수 (Exogenous) — 한국 외부 충격 소스
-
-### B.1 미국
-
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 연준 기준금리 (FFR) | Fed | FOMC (8회/년) |
-| FOMC dot plot 변화 | Fed | 분기 |
-| 연준 위원 발언 sentiment | Fed speakers calendar | 주 |
-| 미 재무부 환율보고서 | Treasury | 반기 |
-| USTR 무역정책 발표 | USTR | 이벤트 |
-| CHIPS Act 보조금 결정 | DOC | 이벤트 |
-| IRA 보조금·관련 가이던스 | DOE, IRS | 이벤트 |
-| OFAC 제재 추가 (한국 기업 영향 가능) | OFAC | 이벤트 |
-| 미 대선 사이클 | 폴 + 배팅마켓 | 주 |
-| 미 국채 금리 (2Y, 10Y, 30Y) | 시장 | 일 |
-| DXY 달러 인덱스 | 시장 | 일 |
-| 미 CPI, PPI, PCE | BLS, BEA | 월 |
-| 미 ISM PMI | ISM | 월 |
-| 미 신규 실업수당 청구 | DOL | 주 |
-
-### B.2 중국
-
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 중국 GDP 성장률 | 국가통계국 | 분기 |
-| 중국 PMI (제조·서비스) | 국가통계국 + 차이신 | 월 |
-| 한한령 강화·완화 신호 | 외교부 + 언론 | 이벤트 |
-| 한중 외교 마찰·해빙 | 동일 | 이벤트 |
-| 중국 IT 규제 (한국 entertainment 영향) | 중국 정부 | 이벤트 |
-| 위안화 환율 (USD/CNY) | 시장 | 일 |
-| 중국 부동산 위기 동향 (헝다·비구이위안 등) | 언론 | 주 |
-| 시진핑 정책 발표 (양회·당대회) | 신화사 | 이벤트 |
-| 중국 반도체 자급률 정책 | 중국 정부 + 산업 보고 | 월 |
-| 한중 무역 통계 | 관세청 | 월 |
-
-### B.3 일본
-
-| 변수 | 시간 |
+| Latent variable | Example observed signals |
 |---|---|
-| 엔/달러 환율 | 일 |
-| BOJ 정책 (YCC, 기준금리) | 정책회의 |
-| 한일 무역 마찰 (반도체 소재) | 이벤트 |
-| 한일 외교 회담·합의 | 이벤트 |
-| 일본 CPI | 월 |
-| 도쿄증권거래소 PBR<1 정책 진척도 | 분기 |
+| Government friendliness toward chaebol | Pardons, tax-audit frequency, FTC tone, prosecution pattern |
+| Market risk appetite | VIX, credit spreads, foreign flow, option IV |
+| Korea discount factor | Korea/global PER comparison, foreign allocation, FX |
+| Political stability | Approval volatility, conflict intensity, personnel turnover |
+| Succession urgency | Chair age, child roles, stake transfers, affiliate-role changes |
+| Policy-change prior | Bills, hearing statements, polls, government statements |
 
-### B.4 지정학
+### Time scale
 
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 북한 미사일 발사 | 합참 | 이벤트 |
-| 북한 핵실험 | 동일 | 이벤트 (드물게) |
-| 대만 해협 긴장 (중국 군사 활동) | 대만 국방부 + 위성 | 주 |
-| 우크라이나 전쟁 동향 | 언론 | 주 |
-| 중동 분쟁 (Iran-Israel, 가자) | 언론 + AIS | 주 |
-| 호르무즈 해협 통행량 | AIS | 일 |
-| 글로벌 원유 생산량 | OPEC, EIA | 월 |
-| OPEC+ 결정 | 회의 | 이벤트 |
-
-### B.5 글로벌 매크로
-
-| 변수 | 소스 | 시간 |
-|---|---|---|
-| 글로벌 PMI (JPMorgan global) | JPM | 월 |
-| 글로벌 무역량 (CPB) | CPB | 월 |
-| 운임지수 (BDI, BCTI, SCFI) | Baltic, Shanghai | 일 |
-| 원자재: 구리·철광석·니켈 | LME, SHFE | 일 |
-| 원자재: 리튬·코발트·우라늄 | Benchmark Mineral | 주 |
-| 곡물 가격 (옥수수·밀·대두) | CBOT | 일 |
-| 에너지: WTI, Brent, NG | NYMEX | 일 |
-| 비트코인 가격 (시장 risk-on proxy) | 거래소 | 일 |
-| VIX (S&P500 implied vol) | CBOE | 일 |
-| MOVE (국채 implied vol) | ICE | 일 |
-| 글로벌 신용 스프레드 (IG, HY) | Bloomberg, ICE | 일 |
-| 신흥국 통화 인덱스 (EM FX) | 시장 | 일 |
-
----
-
-## C. 이벤트 (One-time / Sporadic Triggers)
-
-### C.1 거버넌스 이벤트
-
-- 지주사 전환 발표
-- 합병 결정
-- 분할 (물적/인적) 결정
-- 자회사 IPO 발표·진행·완료
-- 자사주 매입 발표
-- 자사주 소각 발표
-- 배당 정책 변경 (배당성향, DPS, 자사주 배당)
-- M&A 발표·중단·합의·종결
-- 주식양수도 계약 (대주주 변경)
-- 행동주의 펀드 5% 보고
-- 주주제안 안건 상정
-- 의결권 위임장 대결 (proxy fight)
-- 계열사 자산 매각·취득
-
-### C.2 법적·규제 이벤트
-
-- 신 법 발효 (자본시장법, 상법, 공정거래법 등)
-- 시행령·시행규칙 개정
-- 대법원 판결 (특히 거버넌스·세무 관련)
-- 헌재 결정 (정치·경제 영향)
-- 검찰 수사 착수·압수수색
-- 공정위 의결 (제재금·시정명령)
-- 금감원 검사 결과 발표
-- 국세청 추징금 부과
-- 금융위 신규 정책 발표
-- 노동부 노동 분쟁 조정
-- 환경부 환경영향평가 결과
-
-### C.3 정치 이벤트
-
-- 대선·총선·보권·지방선거
-- 정상회담 (한미, 한중, 한일, 다자)
-- 비상사태 (계엄, 국가비상사태)
-- 탄핵소추·심판
-- 정당 분당·합당
-- 차기 대선 후보 출마 선언
-- 인사청문회 (총리, 장관, 대법관)
-- 국정감사
-- 대통령 거부권 행사
-- 사면 결정 (8.15, 12.31)
-- 비상경제대책회의
-- 추경 편성 발표
-- 한미·한중 외교 마찰 발생
-
-### C.4 기업 이벤트
-
-- 어닝 발표 (분기)
-- 어닝 가이던스 (선제 공시)
-- 가이던스 상·하향
-- 임원 급변동 (CEO·CFO 사임·교체)
-- 대규모 손실 공시
-- 회계 부정 의혹·증권 정정
-- 신제품 출시 (대형)
-- 대규모 수주 (해외 인프라, 방산)
-- 공장 화재·사고
-- 노사 분쟁·파업
-- 영업정지·인허가 취소
-- 신용등급 변경
-
-### C.5 가족 이벤트
-
-- 총수 사망
-- 총수 와병·사임
-- 가족 결혼·이혼
-- 자녀 회사 가입
-- 자녀 회사 내 승진
-- 형제 갈등 표면화 (소송 등)
-- 상속 분쟁 발생
-- 사전 증여 결정 공개
-- 자녀 해외 이주
-
-### C.6 외부 충격
-
-- 자연재해 (지진, 태풍, 홍수)
-- 팬데믹 발발·종식
-- 전쟁 발발·종식·확전
-- 글로벌 금융위기·은행 파산 (SVB류)
-- 환율 급변동 (1500원 돌파 등)
-- 국제 제재 발효
-- 사이버 공격 (대형 데이터 유출)
-- 핵심 원자재 공급 중단
-- 주요 국가 신용등급 강등
-
----
-
-## D. 잠재 변수 (Latent / Hidden State Variables)
-
-직접 관측 불가, 다른 변수들로 추론. HMM·Kalman 영역.
-
-| 잠재 변수 | 관측 신호 (input) | 의미 |
-|---|---|---|
-| 정부의 chaebol 친화도 | 사면, 세무조사 빈도, 공정위 의결 톤, 검찰 수사 패턴 | regime variable |
-| 시장의 risk appetite | VIX, 신용 스프레드, 외국인 흐름, 옵션 IV | 매크로 sentiment |
-| Korea Discount factor | 한국 vs 글로벌 PER 비율, 외국인 한국 비중, 환율 | structural |
-| 외국인의 한국 신뢰도 | 외국인 net 매수 누적, 13F filings | longer-term |
-| 국내 소비자 신뢰 | 소비자신뢰지수, 카드 결제, 부동산 심리 | 매크로 |
-| 산업별 사이클 phase | 산업 매출, 가격, 재고 | 산업별 |
-| 지정학 긴장도 | 북한 도발, 미중 무역 분쟁, 외교부 톤 | 지정학 |
-| 정치 안정도 | 지지율 변동성, 정쟁 강도, 사임 빈도 | 정치 |
-| 그룹별 가족 갈등 강도 | 소송, 이혼, 임원 인사, 언론 노출 | 가족 |
-| 그룹별 승계 임박도 | 총수 연령, 자녀 직책 변화, 지분 이전 | 가족 |
-| 정책 변화 prior probability | 발의 법안, 청문회 발언, 사료 조사, 정상회담 | 정책 |
-| 사법부 독립성 perception | 정치 사건 판결 패턴, 인사권 행사 | 제도 |
-| 검찰 정치적 성향 | 수사 선택성, 인사 패턴 | 제도 |
-
----
-
-## E. 시간 스케일 매트릭스
-
-각 변수의 natural frequency. 모델이 다중 시간 스케일을 다루도록 설계되어야 함.
-
-| 스케일 | 변수 카테고리 |
+| Scale | Variables |
 |---|---|
-| 초·분 | 주가, 거래량 (HFT 영역, 우리 영역 X) |
-| 일 | 매매 흐름, 공시, 환율, 원자재, AIS·ADS-B |
-| 주 | 사료 조사, 운임지수, 정부 statements, 한미 발언 |
-| 월 | CPI, PMI, 산업생산, 무역통계, 한은 MPC, 사회 sentiment |
-| 분기 | GDP, 어닝, 13F, NPS 보유 변경, 정책 평가 |
-| 연 | 선거 (이슬·지정), 임기, 산업 사이클, ESG 등급 |
-| 다년 | 인구 변화, 산업 transition, 거버넌스 doctrine 변화 |
+| Daily | Filings, trading flow, FX, commodities, news |
+| Weekly | Polls, government statements, industry prices |
+| Monthly | CPI, PMI, industrial production, MPC, social sentiment |
+| Quarterly | GDP, earnings, 13F, NPS position changes |
+| Annual | Elections, ESG ratings, industry cycle |
+| Multi-year | Demographics, industry transition, governance doctrine |
 
----
+### Priority
 
-## F. 변수 간 주요 인과 관계 (Bayesian network 엣지 후보)
+| Priority | Contents |
+|---|---|
+| Tier 1 | DART, KRX, ministry releases, Assembly bills, BOK, top groups, KOSPI200/KOSDAQ150 |
+| Tier 2 | Chaebol family variables, NPS, politician statements, prosecution/courts, 13F, activism |
+| Tier 3 | Option IV, ETF flow, search trends, industry micro data, short balance |
+| Tier 4 | Satellite, card data, real-estate transactions, expensive alternative data |
 
-Phase 4에서 정형화할 핵심 의존성 (양방향 가능성 표시):
+### Usage principles
 
-### F.1 정부 → 기업
-
-- 대통령 지지율 → 기업 친화 정책 빈도
-- 차기 대선 임박도 → 인기영합 정책 (기업 부담)
-- 사면 결정 → 재벌 지배구조 안정 신호
-- 검찰 수사 강도 → 해당 그룹 주가
-- 공정위 의결 → 일감 몰아주기 비율 변화 압력
-- 상속세율 변화 prior → 가족 승계 의사결정 timing
-
-### F.2 기업 → 정부
-
-- 사고단체 (전경련, 대한상의) 발언 → 정책 방향
-- 대규모 투자 발표 → 정부 인센티브 협상 카드
-- 노동 해고 → 노동부 갈등 + 사료
-- 어닝 쇼크 (대형주) → 정부 경제 정책 조정 압력
-
-### F.3 가족 → 기업
-
-- 총수 연령 + 자녀 직책 → 지주사 전환 prior
-- 가족 갈등 → 분할·매각 가능성
-- 임원 신부 → 주가 누르는 인센티브 (역설적)
-- 자녀 해외 이주 → 국내 사업 비중 축소 가능성
-
-### F.4 외국인 → 기업·시장
-
-- 외국인 net 매도 누적 → 단기 가격 하락 + 행동주의 지정 prior 상승
-- MSCI 비중 조정 → 패시브 자금 증가 추종
-- 13F 신규 지정 → 단기 모멘텀 + 시장 추종
-- Korea Discount 인식 변화 → 외국인 비중 변화 → 시장 전반
-
-### F.5 외부 → 한국
-
-- 미 연준 금리 → 한은 금리 → 환율 → 외국인 흐름 → KOSPI
-- 미 CHIPS Act → 한국 반도체사 미국 투자 결정
-- 중국 한한령 → 화장품·콘텐츠 매출 → 관련 종목
-- 북한 도발 → 단기 변동성 spike → 평균 회귀
-- WTI 급등 → 정유 단기 + 항공·해운 부정
-
----
-
-## G. 우선순위 (Phase별 implementation 순서)
-
-### Tier 1 (Phase 1~2, *반드시 구현*)
-- DART 공시 전체
-- KRX 일별 투자자별 매매
-- 정부 보도자료 (기재부, 금융위, 공정위, 산업부, 국세청)
-- 국회 의안정보시스템
-- 한은 의사록·통계
-- 매크로: 환율, 금리, 유가, KOSPI, VIX
-- 5대 그룹 + 한진·CJ·신세계 그룹 변수
-- KOSPI200 + KOSDAQ150 종목 변수
-
-### Tier 2 (Phase 3, *actor model에 필요*)
-- 재벌 가족 변수 (연령, 직책, 지분)
-- 국민연금 의결권·보유
-- 정치인 발언 sentiment
-- 사료 조사 시계열
-- 검찰 수사·법원 판결 추적
-- 외국인 13F filings
-- 행동주의 펀드 지정 추적
-
-### Tier 3 (Phase 4~5, *모델 정교화 시*)
-- KOSPI200 옵션 IV 곡면
-- ETF 흐름 (섹터별)
-- 검색 트렌드 (네이버·구글)
-- AIS·ADS-B (지정학 변수)
-- 산업별 마이크로 데이터 (DRAM 가격, BDI 등)
-- 공매도 잔고 시계열
-- 사외이사 네트워크 (그룹 간 연결)
-
-### Tier 4 (Optional / Future)
-- 위성 이미지 (공장 가동률, 원유 재고)
-- 신용카드 결제 데이터
-- 부동산 실거래가
-- SNS 정치 담론 분석
-- 글로벌 동맹·지정 변화
-- 다자 외교 dynamics
-
----
-
-## H. 데이터 수집 비용·난이도 메모
-
-| 소스 | 비용 | 난이도 | 메모 |
-|---|---|---|---|
-| DART | 무료 | 쉬움 | OpenAPI 공식 |
-| KRX 일별 매매 | 무료 | 쉬움 | 정보데이터시스템 |
-| 국회 의안 | 무료 | 중간 | RSS 한정, 본문은 별도 |
-| 정부 보도자료 | 무료 | 중간 | 부처별 RSS |
-| 한은 통계 | 무료 | 쉬움 | ECOS API |
-| Gallup 사료 조사 | 무료 | 쉬움 | 공식 발표 |
-| 13F filings | 무료 | 중간 | SEC EDGAR |
-| Bloomberg | 매우 비싸 | — | terminal $24K/년, hobby 부가 |
-| Refinitiv | 매우 비싸 | — | 동일 |
-| FN가이드 컨센서스 | 비싸 | 중간 | retail은 증권사 HTS 통해 부분 가능 |
-| 매경/한경 RSS | 무료 | 쉬움 | 본문 일부 제한 |
-| Reuters Korea | 부분 무료 | 중간 | 일부 paid |
-| 위성 이미지 | 무료~비싸 | 어려움 | Planet Labs trial, Maxar 비싸 |
-| AIS·ADS-B | 무료 | 중간 | MarineTraffic, Flightradar 부분 무료 |
-| OFAC | 무료 | 쉬움 | 공식 다운로드 |
-
----
-
-## I. 사용 메모
-
-- 이 카탈로그는 *living document*. Phase 진행하면서 추가·삭제·우선순위 변경.
-- 변수 100개를 *완벽하게* 추적하려 하지 말 것. *20개를 정확하게* 추적하는 게 *100개를 부정확하게* 추적하는 것보다 항상 낫다.
-- 각 변수는 *어떤 actor의 어떤 의사결정에 영향*을 주는지 매핑되어야 함. 의미 매핑 없는 변수는 noise.
-- 새 이벤트 카테고리가 등장하면 (예: AI 규제법, 디지털 자산 정책) 즉시 추가.
-- Tier 4 변수들은 *집행 비용 vs 한계 alpha 기여*를 보고 익히 결정.
+- Each variable should map to a specific actor decision.
+- Expensive or unstable sources should not be Tier 1 by default.
+- New event categories can enter the catalog without becoming immediate implementation work.
+- The public snapshot does not include live DBs or paid datasets.

@@ -1,162 +1,107 @@
-# Schema v2 — NFKC + Hot fields + Tier system + Behavioural-economic entities
+# Schema v2
 
-**PR-SCHEMA-V2** rebuilds the persistence layer to fix the
-NFKC bug surfaced by PR-DASHBOARD-v0, denormalize identity hot
-fields for index-driven joins, and add a substantive
-political/economic tier system plus relationship-strength fields
-on edges and impact-heterogeneity fields on events.
+## 한국어
 
-## Why v2
+### 문서 목적
 
-PR-DASHBOARD-v0 found that `WHERE hanja_name = '李在明'` returned
-zero rows even though the person was clearly in the database.
-Root cause: the NEC API ships hanja as **CJK Compatibility
-Ideographs** (e.g. 李 = U+F9E1), while Python source files
-default to **CJK Unified Ideographs** (U+674E). The two render
-identically but compare unequal.
+이 문서는 현재 SQLite persistence layer의 핵심 schema 변경점을 설명합니다. Schema v2의 목표는 문자열 정규화 문제를 줄이고, source 간 identity resolution을 빠르게 만들며, actor 중요도와 event impact를 model feature로 저장하는 것입니다.
 
-The dashboard worked around this with a query-time `nfkc()` SQL
-function. v2 fixes the underlying problem at every persist
-boundary, then keeps the dashboard's defensive normalization in
-place as backstop.
+### 왜 v2가 필요한가
 
-While we were rebuilding the persistence layer, we also addressed:
+한국 데이터에서는 같은 글자가 서로 다른 Unicode codepoint로 들어오는 일이 있습니다. 예를 들어 한자 이름은 화면에는 같아 보여도 CJK compatibility form과 unified form이 달라 SQL 비교가 실패할 수 있습니다.
 
-- **Hot fields** — `actors_dyn.hanja_name`, `birthday`,
-  `external_id` etc. were buried in `identity_json`, requiring
-  full JSON scans for every cross-source lookup.
-- **Tier system** — the abstract notion of "important politician"
-  vs "fringe candidate" wasn't expressed; downstream signal
-  models had no way to weight by importance.
-- **Behavioural-economic fields** — relationships had no
-  intensity, events had no per-actor heterogeneity. The same
-  M&A announcement affects an acquirer differently from a
-  minority shareholder, but the schema couldn't say so.
+Schema v2는 persist boundary에서 NFKC normalization을 적용해 이 문제를 줄입니다. 동시에 자주 조회하는 identity field를 JSON 내부가 아니라 column으로 올려 cross-source lookup이 index를 탈 수 있게 했습니다.
 
-## Field map
+### 주요 변경점
 
-### `actors_dyn` (existing + v2)
+| 영역 | 내용 |
+|---|---|
+| NFKC normalization | string field와 JSON field를 저장 전에 정규화 |
+| Hot identity fields | `hanja_name`, `birthday`, `external_id`, `external_id_type`을 column으로 저장 |
+| Tier fields | `political_tier`, `economic_tier`, `peak_*_tier`, `tier_history_json` 추가 |
+| Edge strength | `edges_dyn.strength`, `confidence`, `election_id` 추가 |
+| Event impact | `raw_events.primary_actor_id`, `event_subtype`, `impact_magnitude`, `actor_targets_json` 추가 |
+| Document metadata | `documents.outlet`, `llm_priority`, `matched_actors_json`, `signal_extracted` 추가 |
 
-```
--- existing
-id, name, category, role, activation, identity_json, sources_json,
-schema_json, decision_variables_json, notes, status, trust_score,
-proposal_source, proposed_by, proposed_at, promoted_at, promoted_by,
-deprecated_at, rationale, type
+### NFKC defense in depth
 
--- v2 hot fields
-hanja_name                    TEXT      NFKC-normalized at persist
-birthday                      TEXT      YYYYMMDD
-external_id                   TEXT      huboid / jurirno / mona_cd / naas_cd
-external_id_type              TEXT      enum-checked
+`persistence.core_io`는 `nfkc()`, `nfkc_recursive()`, `has_compat_codepoint()`를 제공합니다. `upsert_actor_dyn`, `upsert_edge`, `insert_raw_event`, `upsert_alias` 같은 helper는 string argument와 JSON field를 저장 전에 정규화합니다.
 
--- v2 tier system
-political_tier                INTEGER   1~5 / NULL (CHECK)
-economic_tier                 INTEGER   1~5 / NULL (CHECK)
-peak_political_tier           INTEGER   min over history
-peak_economic_tier            INTEGER
-registered_as_candidate       INTEGER   0/1 (CHECK)
-current_governance_position   TEXT
-current_party_position        TEXT
-current_party_name            TEXT
-current_corp_position         TEXT
-current_corp_group            TEXT
-tier_history_json             TEXT      [{ts, political_tier, economic_tier, reason, source}, ...]
-```
+DB query 단계에서도 dashboard용 custom function으로 NFKC 비교를 할 수 있게 두었습니다. persist layer가 놓친 문자열이 있더라도 마지막 방어선으로 동작합니다.
 
-### `edges_dyn` (v2 additions)
+### Tier system
 
-```
-election_id    TEXT       denormalized for fast NEC-edge filter
-strength       REAL       0~1 relationship intensity (CHECK)
-confidence     REAL       0~1 observer confidence (CHECK)
-```
+Actor 중요도는 `political_tier`와 `economic_tier`로 나눠 저장합니다. 자세한 규칙은 [TIER_SYSTEM.md](TIER_SYSTEM.md)에 정리되어 있습니다.
 
-Strength meaning by edge type:
-- `member_of_party`, `won_election`, `executive_of`, `subsidiary_of`,
-  `owns`, `family_relation` — deterministic ties: **1.0**
-- `shareholder_of` — **`ownership_pct / 100`** (e.g. 24.34% stake → 0.2434)
-- `candidate_in` / `withdrew_from` / `invalidated` — 0.5 if abridged
-  outcome, 1.0 otherwise
-- LLM-extracted edges (future) — < 1.0 to express uncertainty
+### Indexes
 
-### `raw_events` (v2 additions)
+Schema v2는 hot identity field와 tier column에 partial index를 추가합니다. 특히 `hanja_name + birthday` 조합은 NEC, DART, FTC 같은 source를 가로질러 같은 사람을 찾는 데 중요합니다.
 
-```
-primary_actor_id      TEXT     canonical actor mainly affected
-event_subtype         TEXT     fine-grained kind (e.g. 'subsidiary_addition')
-impact_magnitude      REAL     0~1 event-level intensity (CHECK)
-actor_targets_json    TEXT     [{actor_id, magnitude, interpretation?}, ...]
-```
+### 현재 경계
 
-Magnitudes are **seed estimates**, not derived from data — they
-reflect how much the ingest layer believes a given event matters
-relative to the worst-case (1.0). They're calibrated to the
-following anchors:
+구현된 것:
 
-| event              | impact_magnitude | rationale |
-|--------------------|------------------|-----------|
-| candidate_register | 0.3              | routine   |
-| candidate_withdraw | 0.5              | meaningful |
-| candidate_invalidated | 0.6           | partial crisis |
-| candidate_deceased | 0.8              | full crisis |
-| subsidiary_addition / removal | 0.4   | structural |
-| subsidiary_postpone | 0.2             | administrative |
+- Schema v2 columns and indexes
+- NFKC normalization helpers
+- persistence helper updates
+- health check script
 
-`actor_targets_json` spreads the impact: e.g. for `candidate_withdraw`
-the primary actor gets the full hit, but the affected election and
-party also receive smaller magnitudes (0.1–0.2) to drive downstream
-correlation models.
+남은 것:
 
-### `documents` (v2 additions)
+- 모든 adapter에서 v2 field를 완전히 채우는 작업
+- multi-year trajectory coverage 확대
+- Layer 2에서 tier와 impact field를 실제 sizing/risk feature로 사용하는 작업
 
-```
-outlet               TEXT     '조선일보' / 'mof' / etc
-llm_priority         INTEGER  1=hot, higher=lower
-matched_actors_json  TEXT     canonical actor_ids found in body
-signal_extracted     INTEGER  0/1 — LLM extractor visited
-```
+---
 
-These prepare for PR-NAVER (Phase 1 LLM extraction) but don't
-require any extractor to be running — they're filled by adapters
-opportunistically.
+## English
 
-## NFKC defense in depth
+### Purpose
 
-`persistence.core_io` exposes `nfkc()`, `nfkc_recursive()`, and
-`has_compat_codepoint()`. Every persist helper
-(`upsert_actor_dyn`, `upsert_edge`, `insert_raw_event`,
-`upsert_alias`) NFKC-normalizes its string args and recursively
-walks every JSON field before writing. Querying NFKC inside the
-DB also works via the dashboard's registered custom function —
-that path remains as backstop for any string the persist layer
-hasn't seen yet.
+This document explains the main changes in the current SQLite persistence layer. Schema v2 is designed to reduce string-normalization errors, make cross-source identity resolution faster, and store actor importance and event impact as model features.
 
-## Tier system
+### Why v2 exists
 
-See [TIER_SYSTEM.md](TIER_SYSTEM.md) for the substantive rules.
+Korean data can contain visually identical characters with different Unicode codepoints. Hanja names, for example, may arrive as CJK compatibility ideographs while source code or manual queries use unified ideographs. The strings render the same but compare unequal.
 
-## Indexes
+Schema v2 reduces this problem by applying NFKC normalization at persistence boundaries. It also promotes frequently queried identity fields out of JSON blobs and into indexed columns.
 
-Schema v2 adds 15 new indexes covering the hot fields and tier
-columns. All are partial (`WHERE col IS NOT NULL`) to keep them
-small. The `idx_actors_dyn_hanja_birthday` composite is the key
-one for cross-source identity resolution (PR4-PERSON).
+### Main changes
 
-## Migration path
+| Area | Change |
+|---|---|
+| NFKC normalization | Normalize string fields and JSON fields before write |
+| Hot identity fields | Store `hanja_name`, `birthday`, `external_id`, `external_id_type` as columns |
+| Tier fields | Add `political_tier`, `economic_tier`, `peak_*_tier`, `tier_history_json` |
+| Edge strength | Add `edges_dyn.strength`, `confidence`, `election_id` |
+| Event impact | Add `raw_events.primary_actor_id`, `event_subtype`, `impact_magnitude`, `actor_targets_json` |
+| Document metadata | Add `documents.outlet`, `llm_priority`, `matched_actors_json`, `signal_extracted` |
 
-This PR rebuilds the DB from scratch. The previous v1 database
-is preserved at `data/world.db.bak.v1` for reference. Re-ingest
-runs FTC + NEC both deterministic — actor/edge/alias counts
-should match the previous baseline within RSS noise (±100
-documents).
+### NFKC defense in depth
 
-## Backwards-compatibility
+`persistence.core_io` exposes `nfkc()`, `nfkc_recursive()`, and `has_compat_codepoint()`. Helpers such as `upsert_actor_dyn`, `upsert_edge`, `insert_raw_event`, and `upsert_alias` normalize string arguments and JSON fields before writing.
 
-Every v2 column is `NULL`-able. Adapters that pre-date v2 (e.g.
-the legacy `dart`, `news`, `macro`, `bok_ecos`, `govt_press`
-adapters) keep working — they just emit actors/edges/events with
-the v2 fields left blank. The PR-Z `IngestedActor` / PR4-FTC
-`IngestedEdge` / `IngestedRawEvent` dataclasses gained new
-fields with default `None`, so existing call sites compile
-unchanged.
+The dashboard path can also register a DB-level custom function for NFKC comparison. That acts as a fallback for strings that did not pass through the persistence helpers.
+
+### Tier system
+
+Actor importance is stored through `political_tier` and `economic_tier`. The detailed rules live in [TIER_SYSTEM.md](TIER_SYSTEM.md).
+
+### Indexes
+
+Schema v2 adds partial indexes over hot identity fields and tier columns. The `hanja_name + birthday` combination is especially important for matching the same person across NEC, DART, and FTC sources.
+
+### Current boundary
+
+Implemented:
+
+- Schema v2 columns and indexes
+- NFKC normalization helpers
+- persistence helper updates
+- health check script
+
+Remaining work:
+
+- filling v2 fields consistently across every adapter
+- broadening multi-year trajectory coverage
+- using tier and impact fields in future Layer 2 sizing/risk logic

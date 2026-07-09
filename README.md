@@ -4,9 +4,9 @@
 
 ### 한 줄 소개
 
-`MS_Investment`는 한국 주식시장을 가격 차트만으로 보지 않고, 정책결정자, 규제기관, 재벌 그룹, 국회, 기업 임원, 투자자, 정당 같은 행위자들이 서로 영향을 주고받는 정치경제 시스템으로 모델링해보는 연구용 프로젝트입니다.
+`MS_Investment`는 한국 주식시장을 가격 차트만으로만 보지 않고, 정책결정자, 규제기관, 재벌 그룹, 국회, 기업 임원, 투자자, 정당 같은 행위자들이 서로 영향을 주고받는 정치경제 시스템으로 모델링하는 연구용 프로젝트입니다.
 
-목표는 바로 매매 봇을 만드는 것이 아닙니다. 목표는 “정치경제적 narrative가 어떻게 만들어지고, 언제 현실과 벌어지며, 그 차이가 투자 가설로 바뀔 수 있는가”를 코드와 데이터 구조로 검증 가능한 형태까지 밀어붙이는 것입니다.
+목표는 자동 매매 봇을 바로 만드는 것이 아닙니다. 이 프로젝트의 목표는 정치경제적 narrative가 어떻게 만들어지고, 언제 현실과 벌어지며, 그 차이가 투자 가설로 바뀔 수 있는지를 코드와 데이터 구조로 검증 가능한 형태까지 밀어붙이는 것입니다.
 
 ### 문제의식
 
@@ -16,13 +16,13 @@
 - 재벌 승계, 자사주 소각, 물적분할, 지배구조 개편
 - 국회 회의록, 정부 보도자료, DART 공시, FTC 대기업집단 자료
 - 정당과 정치인의 입장 변화, 후보 등록, 선거 이력
-- 외국인 투자자와 국내 개인 투자자가 서로 다르게 받아들이는 narrative gap
+- 외국인 투자자와 국내 개인 투자자가 다르게 받아들이는 narrative gap
 
-이 프로젝트는 이런 정보를 “뉴스 요약”으로 끝내지 않고, actor, event, variable, causal edge, canonical identity, narrative contract로 나눠 저장하고 검증하려고 합니다.
+이 프로젝트는 이런 정보를 뉴스 요약으로 끝내지 않고, actor, event, variable, causal edge, canonical identity, narrative contract로 나눠 저장하고 검증하려고 합니다.
 
-### 현재 코드가 실제로 하는 일
+### 현재 코드가 하는 일
 
-현재 공개 snapshot은 research infrastructure 단계입니다. 특히 다음 부분이 구현되어 있습니다.
+현재 공개 snapshot은 research infrastructure 단계입니다.
 
 | 영역 | 구현 상태 |
 |---|---|
@@ -30,10 +30,10 @@
 | Korean domain priors | `korea/`에 M&A, 거버넌스 개혁, 학계 기반 prior, 기본 causal edge seed 구현 |
 | Official-source ingestion | 국회, DART, DART 임원, FTC, BOK ECOS, 정부 보도자료, KRX용 adapter 골격 구현 |
 | Dynamic catalog | `extract/agenda.py`와 `persistence/dyn_catalog_io.py`에서 proposed -> active catalog 흐름 구현 |
-| SQLite persistence | `persistence/schema.sql`, `core_io.py`, `ingest_io.py`에 schema v2와 저장 helper 구현 |
+| SQLite persistence | `persistence/schema.sql`, `core_io.py`, `ingest_io.py`에 Schema v2와 저장 helper 구현 |
 | Canonical resolution | 재벌 조직, 정치/경제 인물, 정당 canonical layer 구현 |
 | Narrative contract | `core/narrative.py`에 Layer 1이 Layer 2로 넘길 `NarrativeAssessment` dataclass 정의 |
-| Minimal synthesizer | `runtime/synthesizer.py`가 현재 DB field로 v0 placeholder assessment를 생성 |
+| Minimal synthesizer | `runtime/synthesizer.py`가 현재 DB field로 v0 placeholder assessment 생성 |
 | Health checks | `scripts/verify_db.py`, `scripts/verify_contract.py`, `scripts/verify_canonical.py` |
 | Tests | 공개 snapshot 기준 127개 unit test 통과 |
 
@@ -41,43 +41,28 @@
 
 이 repository는 투자 조언이나 완성된 trading system이 아닙니다. 다음은 의도적으로 아직 구현하지 않았거나 placeholder로 남겨둔 부분입니다.
 
-- 본격적인 LLM narrative extraction
+- full LLM narrative extraction
 - reality gap detector
 - future narrative generator
 - verification stack stages A-F
 - Layer 2의 sizing, timing, exit, portfolio risk, broker execution
 - 12개월 forward paper trading validation
 
-즉, 현재 코드는 “정치경제 정보를 구조화하고, actor/canonical/narrative contract까지 이어지는 연구용 기반”입니다. 매매 실행기는 아닙니다.
+즉, 현재 코드는 정치경제 정보를 구조화하고 actor/canonical/narrative contract까지 이어지는 연구용 기반입니다. 매매 실행기는 아닙니다.
 
 ### 설계 요약
 
 이 프로젝트는 Layer 1과 Layer 2를 분리합니다.
 
-**Layer 1: 정치경제 reasoning layer**
+Layer 1은 시장 밖의 사회적/제도적 정보를 읽어 actor state와 narrative state를 만듭니다. 가격을 맞히는 층이 아니라, 어떤 narrative가 강하고 약한지, 어떤 actor가 어떤 결정을 할 가능성이 있는지, 어떤 gap이 생기는지를 구조화하는 층입니다.
 
-Layer 1은 시장 밖의 사회적/제도적 정보를 읽어 actor state와 narrative state를 만듭니다. 이 layer의 책임은 가격을 맞히는 것이 아니라, 어떤 narrative가 강하고 약한지, 어떤 actor가 어떤 결정을 할 가능성이 있는지, 어떤 gap이 생기는지를 구조화하는 것입니다.
-
-현재 구현된 Layer 1 구성요소:
-
-- official-source ingestion
-- dynamic catalog registry
-- actor reasoning core
-- canonical identity layer
-- `NarrativeAssessment` contract
-- v0 minimal synthesizer
-
-**Layer 2: position inference layer**
-
-Layer 2는 아직 구현 전입니다. 설계상 Layer 2는 `NarrativeAssessment`를 받아 position sizing, timing, exit, risk, execution을 담당합니다. LLM reasoning은 거의 쓰지 않고, 비용 모델과 리스크 엔지니어링 중심으로 만들 예정입니다.
+Layer 2는 아직 구현 전입니다. 설계상 Layer 2는 `NarrativeAssessment`를 받아 position sizing, timing, exit, risk, execution을 담당합니다. LLM reasoning보다는 비용 모델과 risk engineering에 가까운 층으로 계획되어 있습니다.
 
 ### 왜 canonical layer가 중요한가
 
-한국 정치경제 데이터는 같은 사람과 조직이 여러 이름으로 등장합니다. 예를 들어 한 사람은 선거관리위원회 후보, 국회의원, 기업 임원, 기사 속 인물로 각각 다르게 나타날 수 있습니다. 재벌 그룹도 한글, 영문, 과거 사명, 계열사명으로 섞입니다.
+한국 정치경제 데이터는 같은 사람과 조직이 여러 이름으로 등장합니다. 한 사람은 선거관리위원회 후보, 국회의원, 기업 임원, 기사 속 인물로 각각 다르게 나타날 수 있습니다. 재벌 그룹도 한글, 영문, 과거 사명, 계열사명으로 섞입니다.
 
-그래서 이 프로젝트는 `actor_canonical_links`, `chaebol_aliases_state`, `nec_candidate_state`, `dart_executive_state`, `ftc_executive_state`, `assembly_member_state`, `chaebol_tier_state` 같은 state table을 두고, source별 identity를 하나의 분석 가능한 entity로 묶습니다.
-
-최근 freeze 기준으로는 정당 canonical도 추가되어, `current_party_name`이 `canonical_party_id`로 연결되고 `무소속`은 별도 flag로 처리됩니다.
+그래서 이 프로젝트는 `actor_canonical_links`, `chaebol_aliases_state`, `nec_candidate_state`, `dart_executive_state`, `ftc_executive_state`, `assembly_member_state`, `chaebol_tier_state` 같은 state table을 두고, source별 identity를 하나의 분석 가능한 entity로 묶습니다. 최근 freeze 기준으로는 정당 canonical도 추가되어 `current_party_name`이 `canonical_party_id`로 연결되고 `무소속`은 별도 flag로 처리됩니다.
 
 ### Repository map
 
@@ -97,6 +82,22 @@ tests/         unit tests
 docs/          architecture, strategy, verification, and freeze notes
 data/*.yaml    public seed data; live SQLite DB files are excluded
 ```
+
+### 문서 안내
+
+| 문서 | 내용 |
+|---|---|
+| `docs/ARCHITECTURE.md` | 전체 구조와 Layer 1/Layer 2 경계 |
+| `docs/SCHEMA_V2.md` | SQLite Schema v2와 NFKC normalization |
+| `docs/CANONICAL_LINKS.md` | 사람, 조직, 정당 canonical resolution |
+| `docs/NARRATIVE_CONTRACT.md` | `NarrativeAssessment` contract |
+| `docs/TIER_SYSTEM.md` | 정치/경제 actor tiering |
+| `docs/variables_catalog.md` | 변수와 이벤트 카탈로그 |
+| `docs/STRATEGY.md` | future Layer 2 strategy design note |
+| `docs/VERIFICATION.md` | verification stack design note |
+| `docs/PORTFOLIO_FREEZE.md` | 공개 snapshot에 포함/제외한 것 |
+| `docs/DEVELOPMENT_LOG.md` | 공개 가능한 개발 흐름 |
+| `ingest_gap_report.md` | ingestion coverage gap 진단 |
 
 ### 실행
 
@@ -120,16 +121,6 @@ python -m pytest -q
 python -m scripts.verify_db
 python -m scripts.verify_contract
 python -m scripts.verify_canonical
-```
-
-### 개발 로그
-
-공개 branch의 git history는 의도적으로 짧습니다. 오래된 내부 branch에는 민감한 값이 들어간 과거 커밋이 있으므로, 포트폴리오용 repository는 `portfolio-freeze`에서 새로 시작한 clean history만 보여줍니다.
-
-대신 개발 흐름은 [docs/DEVELOPMENT_LOG.md](docs/DEVELOPMENT_LOG.md)에 정리했습니다. 실제 공개 커밋은 clone 후 다음 명령으로 확인할 수 있습니다.
-
-```bash
-git log --oneline
 ```
 
 ### 공개 freeze 메모
@@ -164,7 +155,7 @@ This repository tries to make those signals analyzable rather than leaving them 
 
 ### What the code currently does
 
-This public snapshot is research infrastructure. The implemented pieces are:
+This public snapshot is research infrastructure.
 
 | Area | Status |
 |---|---|
@@ -196,20 +187,7 @@ In other words, this repository is the foundation for political-economy signal r
 
 The design separates Layer 1 and Layer 2.
 
-**Layer 1: political-economy reasoning**
-
 Layer 1 reads institutional and social information, updates actor state, and emits narrative state. Its job is not to predict prices directly. Its job is to structure narrative, actor likelihoods, and possible gaps.
-
-Implemented Layer 1 pieces include:
-
-- official-source ingestion
-- dynamic catalog registry
-- actor reasoning core
-- canonical identity layer
-- `NarrativeAssessment` contract
-- v0 minimal synthesizer
-
-**Layer 2: position inference**
 
 Layer 2 is not implemented yet. The intended Layer 2 consumes `NarrativeAssessment` and handles sizing, timing, exits, risk, and execution. It is expected to be mostly non-LLM, using cost models and risk engineering rather than open-ended reasoning.
 
@@ -217,9 +195,7 @@ Layer 2 is not implemented yet. The intended Layer 2 consumes `NarrativeAssessme
 
 Korean political-economy data is messy. The same person can appear as an election candidate, an assembly member, an executive, and a news subject under slightly different identifiers. Conglomerates appear under Korean names, English names, historical names, and affiliate names.
 
-The project therefore maintains canonical state tables such as `actor_canonical_links`, `chaebol_aliases_state`, `nec_candidate_state`, `dart_executive_state`, `ftc_executive_state`, `assembly_member_state`, and `chaebol_tier_state`. These tables let source-specific records collapse into stable analytical entities.
-
-The freeze snapshot also includes party canonicalization: `current_party_name` resolves into `canonical_party_id`, while independent actors are handled with a separate flag.
+The project therefore maintains canonical state tables such as `actor_canonical_links`, `chaebol_aliases_state`, `nec_candidate_state`, `dart_executive_state`, `ftc_executive_state`, `assembly_member_state`, and `chaebol_tier_state`. These tables let source-specific records collapse into stable analytical entities. The freeze snapshot also includes party canonicalization.
 
 ### Repository map
 
@@ -239,6 +215,22 @@ tests/         unit tests
 docs/          architecture, strategy, verification, and freeze notes
 data/*.yaml    public seed data; live SQLite DB files are excluded
 ```
+
+### Documentation guide
+
+| Document | Contents |
+|---|---|
+| `docs/ARCHITECTURE.md` | Overall structure and Layer 1/Layer 2 boundary |
+| `docs/SCHEMA_V2.md` | SQLite Schema v2 and NFKC normalization |
+| `docs/CANONICAL_LINKS.md` | Canonical resolution for people, organizations, and parties |
+| `docs/NARRATIVE_CONTRACT.md` | `NarrativeAssessment` contract |
+| `docs/TIER_SYSTEM.md` | Political/economic actor tiering |
+| `docs/variables_catalog.md` | Variable and event catalog |
+| `docs/STRATEGY.md` | Future Layer 2 strategy design note |
+| `docs/VERIFICATION.md` | Verification stack design note |
+| `docs/PORTFOLIO_FREEZE.md` | What is included/excluded from the public snapshot |
+| `docs/DEVELOPMENT_LOG.md` | Publishable development flow |
+| `ingest_gap_report.md` | Ingestion coverage-gap diagnostic |
 
 ### Running locally
 
@@ -262,16 +254,6 @@ If you have rebuilt or separately provided a local live DB:
 python -m scripts.verify_db
 python -m scripts.verify_contract
 python -m scripts.verify_canonical
-```
-
-### Development log
-
-The public branch history is intentionally short. Older internal branches contain historical commits with sensitive values, so the portfolio repository starts from a clean `portfolio-freeze` history.
-
-A human-readable development log is available in [docs/DEVELOPMENT_LOG.md](docs/DEVELOPMENT_LOG.md). The exact public commits can be inspected after cloning:
-
-```bash
-git log --oneline
 ```
 
 ### Public freeze note

@@ -1,170 +1,157 @@
-# Layer 1 Narrative Assessment Contract
+# Narrative Contract
 
-**PR-CONTRACT-v0** establishes the contract between Layer 1 (narrative
-gap detection) and Layer 2 (sizing / timing / exit). spec stack §3.1 in
-code form.
+## 한국어
 
-## Why this contract exists
+### 문서 목적
 
-Without a code-level contract, the next sprint of PRs (PR-NAVER /
-PR-ASSEMBLY / PR-LEARN / PR-NESTED / PR-CANONICAL) would each invent
-ad-hoc dicts for "the thing Layer 1 hands to Layer 2." That's spec
-drift, and we'd pay for it later by retrofitting a contract over
-divergent shapes.
+이 문서는 Layer 1이 만들어서 미래의 Layer 2로 넘길 `NarrativeAssessment` contract를 설명합니다. 이 contract가 있어야 narrative reasoning 결과가 ad-hoc dict가 아니라 저장, 검증, 재사용 가능한 구조가 됩니다.
 
-This PR pins down five dataclasses, four DB tables, and the
-serialization round-trip — and crucially, it wires the
-`actor_decision_journal` hook (direction.md §5 non-negotiable) and
-`prediction` logging (§6 hindsight-bias guard) so the audit trail can
-never silently disappear.
+### 왜 contract가 필요한가
 
-## Five dataclasses
+Layer 1은 정치경제 정보에서 narrative state, reality gap, target, confidence를 만들어냅니다. Layer 2는 나중에 이 결과를 받아 sizing, timing, exit, risk를 판단해야 합니다. 두 층 사이의 형태가 고정되어 있지 않으면 각 기능이 서로 다른 dict를 만들고, 나중에 통합 비용이 커집니다.
 
-See `core/narrative.py` for definitions.
+`core/narrative.py`는 이 경계를 dataclass로 고정합니다.
 
-| dataclass | role |
+### Dataclasses
+
+| Dataclass | 역할 |
 |---|---|
-| `MarketNarrativeState` | current market frame + sources contribution |
-| `RealityGap` | observed gap between narrative and reality |
-| `FutureNarrativeGap` | predicted narrative shift catalyzed by an event |
-| `Target` | actionable opportunity unit, hands to Layer 2 |
-| `NarrativeAssessment` | the bundle Layer 1 produces per window |
+| `MarketNarrativeState` | 현재 시장 narrative frame과 source contribution |
+| `RealityGap` | 관측된 narrative와 현실의 차이 |
+| `FutureNarrativeGap` | 특정 event가 만들 수 있는 미래 narrative shift |
+| `Target` | Layer 2가 다룰 수 있는 opportunity unit |
+| `NarrativeAssessment` | Layer 1 cycle 하나의 산출물 |
 
-## Forward-compatibility
+### Persistence tables
 
-We expect each downstream PR to add fields *without changing the
-schema*. The shapes that absorb future fields:
+| Table | 역할 |
+|---|---|
+| `assessments` | Layer 1 cycle당 assessment header |
+| `assessment_targets` | assessment에 연결된 target |
+| `reality_gap_observations` | reality gap과 future gap |
+| `predictions` | hindsight bias를 막기 위한 prediction log |
+| `actor_decision_journal` | tick마다 actor decision event를 남기는 audit trail |
 
-- **`MarketNarrativeState.sources`** — `dict[actor_id, dict]`. The
-  inner dict can grow. Today's keys: `contribution`, `authority_type`,
-  `channel`, `document_count`. PR-YOUTUBE will add `subscriber_count`,
-  PR-NESTED time-varying tracking will add `dormant_power_score`.
-- **`RealityGap.gap_type`** — `Literal['quantitative','qualitative',
-  'cross_source','leading_follower']`. The latter two are reserved for
-  PR4-CANONICAL and PR-LEARN respectively.
-- **`Target.actor_decision_likelihood`** / **`evidence_weights`** —
-  both `dict[actor_id, float]`. PR-LEARN's learned `power_share` maps
-  directly into `evidence_weights`. PR-NESTED's nested actor IDs map
-  into `actor_decision_likelihood` without schema change.
-- **`NarrativeAssessment.methodology_version`** — string tag; we evolve
-  through `'v0_minimal_synthesizer'` → `'v1_llm_extraction'` (PR5) →
-  `'v2_nested_learned'` (PR-NESTED + PR-LEARN).
+### Actor decision journal
 
-The DB stores nested JSON in `*_json` columns, so adding fields to the
-inner dicts requires no schema migration.
+`World.tick()`은 actor가 decision event를 emit할 때 `actor_decision_journal`에 기록을 남깁니다. 이 journal은 나중에 actor reasoning이 실제로 어떤 상태에서 어떤 결정을 냈는지 추적하기 위한 장치입니다.
 
-## DB schema
+Journal은 raw affect dimension인 `fear`, `greed`, `urgency`와 derived dimension인 `valence`, `arousal`을 함께 저장합니다. raw dimension은 행동경제학적 학습에 더 유용하고, derived dimension은 기존 downstream consumer와의 호환성을 지켜줍니다.
 
-Five tables (one is `actor_decision_journal`; the other four hold the
-narrative contract):
+### Prediction logging
 
-```
-assessments              — one row per Layer 1 cycle
-assessment_targets       — Targets, FK assessment_id
-reality_gap_observations — RealityGap + FutureNarrativeGap (is_future flag)
-predictions              — logged at creation time, actual filled later
-actor_decision_journal   — ★ direction.md §5 — every actor decision audited
-```
+`predictions.logged_at`은 prediction 생성 시점에 채워지고, `actual_outcome_json`은 결과가 관측된 뒤에만 채워집니다. 이 분리가 없으면 나중에 결과를 보고 그럴듯한 설명을 덧붙이는 hindsight bias를 막기 어렵습니다.
 
-17 indexes total. CHECK constraints on tier ranges, gap_type enum,
-direction (-1/+1), confidence and severity (0~1).
+### Minimal synthesizer
 
-## decision_journal hook — why it matters
+`runtime/synthesizer.py`는 현재 DB field만으로 구조적으로 유효한 v0 `NarrativeAssessment`를 만듭니다. 이 값은 placeholder assessment이며, full LLM narrative extractor가 아닙니다.
 
-`core/world.py:World.tick()` now calls
-`db.insert_actor_decision_journal_entry(...)` for every emitted decision
-event. Before this PR, the existing `decision_journal` table was unused
-— no call site, despite an `insert` helper sitting in
-`persistence/core_io.py:204`. That's the kind of drift the 5/5
-evaluation flagged: a critical primitive that the codebase agreed to
-maintain on paper, but didn't actually exercise.
+현재 synthesizer는 다음 field를 활용합니다.
 
-We split the concerns: the legacy `decision_journal` table stays as the
-trade-hypothesis journal (Layer 2's domain), and a new
-`actor_decision_journal` table holds the per-tick audit trail. This
-keeps both intents intact and avoids breaking whatever Layer 2 code
-arrives later that reads `decision_journal`.
+- `documents.outlet`, `llm_priority`, `matched_actors_json`
+- `raw_events.primary_actor_id`, `event_subtype`, `impact_magnitude`
+- `edges_dyn.strength`, `confidence`
 
-The hook fires once per emitted event, not per actor, so an actor that
-emits both a `market_action` and a `statement` in one tick produces two
-journal rows.
-
-### Affect dimensions in actor_decision_journal (v0.1 amendment)
-
-The journal stores Affect both as **raw 3D** (`AffectiveState`'s
-fear / greed / urgency primitives) AND as **2D derived**
-(Russell 1980 valence-arousal):
-
-| column | source | range | role |
-|---|---|---|---|
-| `affect_fear` | `AffectiveState.fear` | 0~1 | raw — loss aversion driver |
-| `affect_greed` | `AffectiveState.greed` | 0~1 | raw — over-confidence driver |
-| `affect_urgency` | `AffectiveState.urgency` | 0~1 | raw — temporal pressure |
-| `affect_valence` | `greed - fear` | -1~1 | derived (backward-compat) |
-| `affect_arousal` | `urgency` | 0~1 | derived (backward-compat) |
-
-Why both? The 2D collapse loses the fear↔greed asymmetry — a person
-sized 0.7 on greed with 0.0 on fear and another sized 0.0 on greed
-with -0.7 fear share the same valence -0.7 but behave very differently
-under shocks. PR-LEARN's inverse Bayesian inference trains on the raw
-3D trajectories (loss aversion, prospect theory, greed-driven
-over-confidence) which is the load-bearing signal in behavioural
-finance. The 2D derived columns stay so existing downstream
-consumers don't break.
-
-`uncertainty` and `morale` are NOT journaled here — `uncertainty`
-belongs on `BayesianBelief` (its confidence dimension; PR-LEARN scope),
-and `morale` is a slow social-feedback channel rather than a
-per-decision trigger. Both are persisted on `actor_calibrations` /
-belief snapshots elsewhere.
-
-Schema enforces 0~1 range via `CHECK` on fresh DBs; existing v0 DBs
-are upgraded in place by `_apply_idempotent_migrations` (CHECKs can't
-be added via `ALTER TABLE`, so the helper validates at insert time).
-
-## Prediction logging — hindsight bias guard
-
-`predictions.logged_at` is set on insert via
-`db.insert_prediction(...)`. `actual_outcome_json` is `NULL` until the
-horizon passes and someone calls `db.update_prediction_outcome(...)`.
-This split is the §6 prerequisite for Stage C/D/E backtest
-verification: without it, post-hoc justification of bad calls becomes
-indistinguishable from forecasting skill.
-
-`scripts/verify_contract.py` check 03 enforces this — any prediction
-row with NULL `logged_at` fails the health check.
-
-## Stage 7 minimal synthesizer
-
-`runtime/synthesizer.py` produces a structurally valid
-`NarrativeAssessment` from Schema v2 inputs:
-
-- `documents.outlet` / `llm_priority` / `matched_actors_json` →
-  `MarketNarrativeState.sources` and `anchors`
-- `raw_events.primary_actor_id` / `event_subtype` /
-  `impact_magnitude` → `Target.actor_decision_likelihood`
-- `edges_dyn.strength` × `confidence` → `Target.evidence_weights`
-
-The `frame`, `dominance`, `dispersion`, `confidence` fields are
-placeholder values (`'[v0_minimal] placeholder...'` / `0.5` / `0.0`).
-PR5's LLM extractor will fill them properly and bump
-`methodology_version` to `'v1_llm_extraction'` without touching call
-sites.
-
-`World.tick()` calls the synthesizer every N ticks (default 4,
-configurable via `World(synthesizer_every_n_ticks=...)` or
-`None` to disable). Empty assessments (no targets, no gaps) are
-skipped — we don't pollute the table with placeholder rows.
-
-## Verification
+### Verification
 
 ```bash
-# unit tests (11 new, plus 46 existing Schema v2 tests = 57 total)
 python -m pytest tests/test_narrative.py -v
-
-# health check on live DB
-python -m scripts.verify_contract     # 8 / 8 expected
-
-# Schema v2 baseline still intact
-python -m scripts.verify_db           # 12 / 12 expected
+python -m scripts.verify_contract
+python -m scripts.verify_db
 ```
+
+### 현재 경계
+
+구현된 것:
+
+- dataclass contract
+- DB serialization round-trip
+- actor decision journal hook
+- prediction logging table
+- v0 minimal synthesizer
+
+아직 남은 것:
+
+- full LLM narrative extraction
+- reality-gap scoring
+- future narrative generation
+- Layer 2 consumption
+
+---
+
+## English
+
+### Purpose
+
+This document explains the `NarrativeAssessment` contract produced by Layer 1 and consumed by the future Layer 2. The contract keeps narrative reasoning from turning into a collection of ad-hoc dictionaries.
+
+### Why the contract exists
+
+Layer 1 produces narrative state, reality gaps, targets, and confidence from political-economic information. A future Layer 2 will consume those outputs for sizing, timing, exits, and risk. Without a stable shape between the layers, each feature would invent its own structure and integration would become expensive later.
+
+`core/narrative.py` fixes this boundary with dataclasses.
+
+### Dataclasses
+
+| Dataclass | Role |
+|---|---|
+| `MarketNarrativeState` | Current market narrative frame and source contribution |
+| `RealityGap` | Observed gap between narrative and reality |
+| `FutureNarrativeGap` | Future narrative shift catalyzed by an event |
+| `Target` | Opportunity unit that Layer 2 can consume |
+| `NarrativeAssessment` | One Layer 1 cycle's bundled output |
+
+### Persistence tables
+
+| Table | Role |
+|---|---|
+| `assessments` | Assessment header per Layer 1 cycle |
+| `assessment_targets` | Targets attached to an assessment |
+| `reality_gap_observations` | Reality gaps and future gaps |
+| `predictions` | Prediction log used to reduce hindsight bias |
+| `actor_decision_journal` | Audit trail of actor decision events per tick |
+
+### Actor decision journal
+
+`World.tick()` writes to `actor_decision_journal` whenever an actor emits a decision event. The journal makes it possible to inspect what state an actor was in when a decision was produced.
+
+The journal stores raw affect dimensions, `fear`, `greed`, and `urgency`, plus derived `valence` and `arousal`. Raw dimensions are more useful for behavioral learning, while derived dimensions preserve compatibility with downstream consumers.
+
+### Prediction logging
+
+`predictions.logged_at` is filled when the prediction is created. `actual_outcome_json` is filled only after the outcome is observed. This split is important because it prevents post-hoc explanations from being confused with real forecasting skill.
+
+### Minimal synthesizer
+
+`runtime/synthesizer.py` creates a structurally valid v0 `NarrativeAssessment` from current DB fields. It is a placeholder assessment, not a full LLM narrative extractor.
+
+The synthesizer uses:
+
+- `documents.outlet`, `llm_priority`, `matched_actors_json`
+- `raw_events.primary_actor_id`, `event_subtype`, `impact_magnitude`
+- `edges_dyn.strength`, `confidence`
+
+### Verification
+
+```bash
+python -m pytest tests/test_narrative.py -v
+python -m scripts.verify_contract
+python -m scripts.verify_db
+```
+
+### Current boundary
+
+Implemented:
+
+- dataclass contract
+- DB serialization round-trip
+- actor decision journal hook
+- prediction logging table
+- v0 minimal synthesizer
+
+Remaining work:
+
+- full LLM narrative extraction
+- reality-gap scoring
+- future narrative generation
+- Layer 2 consumption

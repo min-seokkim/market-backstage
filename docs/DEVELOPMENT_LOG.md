@@ -2,6 +2,8 @@
 
 ## 한국어
 
+### 문서 목적
+
 이 문서는 `portfolio-freeze` branch에서 공개해도 되는 개발 흐름을 사람이 읽기 쉽게 정리한 기록입니다. 원본 내부 branch의 raw git history는 민감한 값이 들어간 과거 커밋 때문에 공개하지 않습니다.
 
 실제 공개 커밋은 repository를 clone한 뒤 다음 명령으로 확인할 수 있습니다.
@@ -10,17 +12,18 @@
 git log --oneline
 ```
 
-### Public Git History
+### Public git history
 
 `portfolio-freeze`는 clean orphan history로 시작합니다.
 
-| 공개 커밋 | 의미 |
+| 공개 커밋 메시지 | 의미 |
 |---|---|
 | `chore: portfolio freeze snapshot` | API key, live DB, cache, run log, local tool state를 제외한 공개용 root snapshot |
-| `docs: rewrite portfolio documentation bilingual` | 현재 코드 기준으로 README, architecture, freeze 문서를 한국어/영어 병기 형태로 재작성 |
+| `docs: rewrite portfolio documentation bilingual` | README, architecture, freeze 문서를 현재 코드 기준으로 한국어/영어 병기 형태로 재작성 |
 | `docs: add public development log` | 공개 history가 짧은 이유와 sanitized milestone log 추가 |
+| `docs: align all public documentation bilingual` | 모든 공개 문서를 자연스러운 한영 병기 구조로 정리 |
 
-### Sanitized Milestone Log
+### Sanitized milestone log
 
 | 단계 | 내용 |
 |---|---|
@@ -33,7 +36,7 @@ git log --oneline
 | Narrative contract | Layer 1이 Layer 2로 넘길 `NarrativeAssessment` dataclass 정의 |
 | Minimal synthesizer | 현재 DB field로 v0 placeholder assessment를 만드는 `runtime/synthesizer.py` 구현 |
 | Portfolio freeze | `.env`, API key, live DB, cache, run log, local tool state를 제외한 공개 snapshot 구성 |
-| Bilingual docs | 현재 코드 상태를 기준으로 한국어/영어 문서 재작성 |
+| Bilingual docs | 모든 공개 문서를 한국어/영어 병기 형태로 정리 |
 
 ### 공개 원칙
 
@@ -45,6 +48,8 @@ git log --oneline
 
 ## English
 
+### Purpose
+
 This document records the publishable development flow for the `portfolio-freeze` branch. The raw internal branch history is not published because older commits contain sensitive historical values.
 
 Exact public commits can be inspected after cloning:
@@ -53,17 +58,18 @@ Exact public commits can be inspected after cloning:
 git log --oneline
 ```
 
-### Public Git History
+### Public git history
 
 `portfolio-freeze` starts as a clean orphan history.
 
-| Public commit | Meaning |
+| Public commit message | Meaning |
 |---|---|
 | `chore: portfolio freeze snapshot` | Public root snapshot without API keys, live DBs, caches, run logs, or local tool state |
 | `docs: rewrite portfolio documentation bilingual` | Rewrote README, architecture, and freeze docs in Korean and English based on the current code |
 | `docs: add public development log` | Added the public-history rationale and sanitized milestone log |
+| `docs: align all public documentation bilingual` | Aligned all public docs into a natural Korean/English bilingual structure |
 
-### Sanitized Milestone Log
+### Sanitized milestone log
 
 | Stage | Description |
 |---|---|
@@ -76,9 +82,9 @@ git log --oneline
 | Narrative contract | Defined the `NarrativeAssessment` dataclasses passed from Layer 1 to future Layer 2 |
 | Minimal synthesizer | Implemented `runtime/synthesizer.py` to emit v0 placeholder assessments from current DB fields |
 | Portfolio freeze | Built a public snapshot excluding `.env`, API keys, live DBs, caches, run logs, and local tool state |
-| Bilingual docs | Rewrote public documentation in Korean and English to match the current code state |
+| Bilingual docs | Aligned all public documentation in Korean and English |
 
-### Publishing Principles
+### Publishing principles
 
 - Only push the `portfolio-freeze` branch to GitHub.
 - Do not publish raw history from older internal branches.

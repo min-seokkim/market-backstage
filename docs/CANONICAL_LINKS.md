@@ -1,190 +1,197 @@
-# PR4-CANONICAL + PR-PARTY-CANONICAL — yaml seed + DB dynamic state
+# Canonical Links
 
-Self-evolving canonical resolution layer. Bridges NEC / FTC / DART /
-ASSEMBLY actor identifiers and chaebol organization aliases via 7
-dynamic state tables + 4 yaml seeds + Tier B/C/D fuzzy match. The
-follow-up PR-PARTY-CANONICAL adds political party entity resolution on
-top of the same canonical link table.
+## 한국어
 
-## Self-evolving model framing
+### 문서 목적
 
+이 문서는 source마다 다르게 들어오는 사람, 조직, 정당 이름을 하나의 분석 가능한 identity로 묶는 canonical resolution layer를 설명합니다.
+
+한국 정치경제 데이터는 같은 대상이 여러 이름으로 등장합니다. 한 사람은 선거 후보, 국회의원, 기업 임원, 기사 속 인물로 따로 들어오고, 재벌 그룹은 한글명, 영문명, 과거 사명, 계열사명으로 섞입니다. 이 층은 그런 source별 record를 stable analytical entity로 연결합니다.
+
+### 핵심 원칙
+
+```text
+YAML seed     -> git으로 관리하는 bootstrap anchor
+DB state      -> 운영 중 확장되는 source of truth
+state machine -> proposed -> active -> deprecated -> retired
+trust accrual -> verification_count >= 3 and confidence >= 0.7이면 active
+audit trail   -> deprecated/retired row도 삭제하지 않고 이유를 남김
 ```
-yaml seed     = git-versioned bootstrap anchor (one-shot hand-curate)
-                ↓
-DB dynamic    = real-time source of truth
-state machine = proposed → active → deprecated → retired
-trust accrual = verification_count >= 3 AND confidence >= 0.7 → promote
-self-correct  = contradicting evidence → deprecate (audit trail kept)
-auto-discover = media mentions → proposed → trust accrual → active
-```
 
-Hand-curate is bootstrap-once. The model extends, corrects, and deprecates
-itself from API + media signal. yaml seeds are anchors — *not load-bearing*.
+YAML seed는 시작점일 뿐입니다. 실제 운영 상태는 DB의 dynamic state table에 쌓이며, 새 evidence가 들어오면 제안, 승격, 폐기 기록이 남습니다.
 
-## 7 dynamic state tables
+### Dynamic state tables
 
-| Table | Purpose | PK |
-|---|---|---|
-| `actor_canonical_links` | Cross-source canonical (person + organization). State machine. | canonical_id |
-| `chaebol_aliases_state` | alias → canonical_org_id. Resolves 한글·영문·history transition forms. | (alias, canonical_org_id) |
-| `dart_executive_state` | DART 임원 trajectory — per (actor, rcept_no) snapshot. | (actor_id, rcept_no) |
-| `nec_candidate_state` | NEC 후보 trajectory — per (canonical, election) snapshot. | (actor_id, election_id) |
-| `ftc_executive_state` | FTC 임원·owner trajectory — per (actor, year) snapshot. | (actor_id, designation_year) |
-| `chaebol_tier_state` | Chaebol ranking trajectory — per (canonical_org, year). | (canonical_org_id, designation_year) |
-| `assembly_member_state` | ASSEMBLY 의원 trajectory — per (actor, term) snapshot. | (actor_id, assembly_term) |
-
-`actors_dyn.canonical_org_id` (column added) backfilled across all 74,486
-chaebol owner / executive / role / company actors via C4 retrofit.
-
-## Party canonical addendum
-
-PR-PARTY-CANONICAL extends the same canonical layer to political
-parties:
-
-- `actor_canonical_links.canonical_type` now accepts `party`.
-- `actors_dyn.canonical_party_id` stores the resolved `party_*` actor id.
-- `actors_dyn.is_independent` marks `무소속` separately; independent actors
-  keep `canonical_party_id = NULL`.
-- `bootstrap_party_canonical_from_actors()` migrates existing `party_*`
-  actors into `actor_canonical_links`.
-- `resolve_party_canonical()` resolves `current_party_name` to a stable
-  canonical party id when possible.
-
-Live DB health after the retrofit is covered by
-`python -m scripts.verify_canonical` checks 16-18.
-
-## 4 yaml seeds
-
-| File | Role |
+| Table | 역할 |
 |---|---|
-| `chaebol_canonical.yaml` | 34 top-30 chaebol canonical_org_ids + tier + representative companies |
-| `chaebol_aliases.yaml` | 34 canonical → 185 alias forms (한글·영문·한자·history transitions) |
-| `chaebol_classification.yaml` | 106 chaebol forms → tier 1~5 ranking (FTC actual form, 영문 dead entries removed) |
-| `cross_sector_canonical.yaml` | 126 hand-curated person seed cases (정치 ↔ 경제 cross-sector) |
+| `actor_canonical_links` | person, organization, party를 공통 canonical id로 연결 |
+| `chaebol_aliases_state` | 한글, 영문, 과거 사명 alias를 canonical organization으로 연결 |
+| `dart_executive_state` | DART 임원 trajectory |
+| `nec_candidate_state` | 선거 후보 trajectory |
+| `ftc_executive_state` | FTC 임원/owner trajectory |
+| `chaebol_tier_state` | 연도별 재벌 ranking trajectory |
+| `assembly_member_state` | 국회의원 term별 trajectory |
 
-## Tier strategy (NEC ↔ DART)
+최근 freeze에는 정당 canonical도 포함됩니다. `actor_canonical_links.canonical_type`은 `party`를 허용하고, `actors_dyn.canonical_party_id`가 안정적인 party actor id를 저장합니다. `무소속`은 `canonical_party_id = NULL`과 `is_independent = 1`로 따로 표현합니다.
 
-```
-Tier A (hanja + dob)         — already covered by NEC; DART has no hanja
-Tier B (name + YYYYMM)       — main path. Single candidate → confidence 0.85
-Tier C (name + YYYYMM + score) — multi-candidate scored by:
-                                 base 0.5
-                                 + 0.20  owner-family signal
-                                          (mxmm_shrholdr_relate)
-                                 + 0.15  political career keyword
-                                          (main_career)
-                                 + 0.05  senior position (chairman etc)
-                                 capped at 0.85
-Tier D (LLM disambiguate)    — score < 0.7 → Sonnet ~$0.005/call
-                                 high_value_only=True restricts to
-                                 peak_political_tier ≤ 2 OR
-                                 peak_economic_tier ≤ 2
-                                 .cache/llm_cost_pr4.json daily $5 cap
-Tier E (yaml seed)           — bootstrap anchor only · 모델이 extend/correct
-```
+### Seed files
 
-## Trust accrual + state transitions
+| File | 역할 |
+|---|---|
+| `chaebol_canonical.yaml` | 주요 재벌 그룹의 canonical organization seed |
+| `chaebol_aliases.yaml` | 그룹별 alias form |
+| `chaebol_classification.yaml` | group ranking과 tier seed |
+| `cross_sector_canonical.yaml` | 정치와 경제 source를 가로지르는 person seed |
 
-```
-state = 'proposed' (initial — fuzzy match / yaml seed person / LLM gen)
-      → state = 'active'    when verification_count >= 3 AND confidence >= 0.7
-      → state = 'deprecated' on contradicting evidence (manual or learned)
-      → state = 'retired'    on operator decision (kept for audit)
+### Matching strategy
 
-verification_count++ via:
-  - media_mention co-occurrence (discover_from_documents)
-  - re-confirmation via fuzzy_match (rev_history append)
-  - manual operator confirmation
+| Tier | 의미 |
+|---|---|
+| Tier A | hanja + birthday처럼 강한 deterministic signal |
+| Tier B | name + birth month처럼 높은 신뢰도의 structured signal |
+| Tier C | 여러 candidate를 score로 비교하는 fuzzy match |
+| Tier D | 고가치 case에 한해 LLM disambiguation 사용 |
+| Tier E | YAML seed bootstrap |
 
-confidence accrual: +0.1 per evidence_strength=1.0 verification
-                    capped at 1.0
-```
+LLM은 기본 경로가 아닙니다. 비용과 오류 가능성 때문에 high-value case에만 제한적으로 사용하도록 설계되어 있습니다.
 
-`rev_history_json` captures every state change for audit trail. Deprecated
-rows stay in DB — never deleted (PR-LEARN can reason about why a
-canonical was retired).
-
-## CLI usage
+### CLI
 
 ```bash
-# Bootstrap yaml → DB dynamic state (idempotent)
 python -m persistence.canonical --bootstrap
-
-# Force reseed (yaml content overwrites yaml_seed source rows)
 python -m persistence.canonical --bootstrap --force-reseed
-
-# C4 retrofit for existing data (74k chaebol actors + 70k FTC + 81k NEC)
-python -m scripts.retrofit_pr4_canonical               # dry-run
-python -m scripts.retrofit_pr4_canonical --apply       # commit
-
-# DART 임원 ingest (5대 chaebol smoke)
+python -m scripts.retrofit_pr4_canonical
+python -m scripts.retrofit_pr4_canonical --apply
 python -m ingest.dart_exec
-
-# ASSEMBLY ALLNAMEMBER ingest (3,286 의원 base trajectory)
 python -m ingest.assembly_members
-
-# Health check (15 checks)
 python -m scripts.verify_canonical
 ```
 
-## API surface
+### Public API
 
 ```python
 import persistence as db
 
-# Bootstrap
 counts = db.bootstrap_from_yaml(con, force_reseed=False)
-
-# Resolve
-canonical_org_id = db.resolve_org_canonical(con, "에스케이")  # → 'org_chaebol_sk'
-canonical_org_id = db.resolve_org_canonical(con, "SK")        # → 'org_chaebol_sk'
-canonical_org_id = db.resolve_org_canonical(con, "선경")       # → 'org_chaebol_sk'
-
-# Trust accrual + promotion
+canonical_org_id = db.resolve_org_canonical(con, "에스케이")
+canonical_party_id = db.resolve_party_canonical(con, "더불어민주당")
 state = db.update_trust_score(con, canonical_id, "media_mention", 1.0)
-
-# LLM auto-gen (gated by daily cap)
-new_aliases = db.llm_generate_chaebol_aliases(con, "org_chaebol_xxx", "그룹명")
-
-# Cross-source matching
 stats = db.fuzzy_match_cross_sector(con, high_value_only=True, llm_cap=1000)
-
-# Auto-discovery
-stats = db.discover_from_documents(con, since="2024-01-01")
-
-# LLM cost remaining today
-remaining_usd = db.llm_cost_remaining()
 ```
 
-## Forward-compat for PR-LEARN
+### 현재 경계
 
-- `actor_canonical_links.learned_attributes_json` — power_share /
-  dormant_power_score 학습 결과 박힘 (schema migration 없음)
-- `chaebol_tier_state` 매년 row → ranking trajectory 학습
-- `dart_executive_state.main_career` raw → cross-domain transition signal
-- `dart_executive_state.mxmm_shrholdr_relate` raw → power_share prior
-- `*_state` 모든 trajectory tables → time-varying 학습 input
+구현된 것:
 
-## C1~C5 Commit Trail
+- organization/person canonical state
+- party canonical state
+- state machine과 trust accrual
+- YAML bootstrap
+- cross-source fuzzy matching skeleton
+- canonical health check
 
-| Commit | Scope |
+아직 남은 것:
+
+- future ingest 단계에서 canonical id를 더 촘촘히 upsert하는 작업
+- multi-year FTC trajectory backfill
+- DART corp code coverage 확대
+- document-based auto-discovery tuning
+
+---
+
+## English
+
+### Purpose
+
+This document explains the canonical resolution layer: the part of the system that links source-specific people, organizations, and parties into stable analytical identities.
+
+Korean political-economy data is messy. The same person may appear as an election candidate, assembly member, executive, and news subject under different identifiers. Conglomerates appear under Korean names, English names, historical names, and affiliate names. This layer connects those records into entities the model can reason about.
+
+### Core principles
+
+```text
+YAML seed     -> git-versioned bootstrap anchor
+DB state      -> operational source of truth
+state machine -> proposed -> active -> deprecated -> retired
+trust accrual -> active when verification_count >= 3 and confidence >= 0.7
+audit trail   -> deprecated/retired rows remain with reasons
+```
+
+YAML seeds are starting anchors, not the long-term source of truth. Operational evidence accumulates in dynamic DB tables and every state transition is auditable.
+
+### Dynamic state tables
+
+| Table | Role |
 |---|---|
-| C1 (`c72b53e`) | 7 tables + ALTER ADD canonical_org_id + 4 yaml seeds |
-| C2 (`5f3b073`) | persistence/canonical.py — bootstrap·resolve·trust·LLM gen |
-| C3 (`0951979`) | ingest/dart_exec.py + ingest/assembly_members.py (Tier A pair confirmed) |
-| C4 (`e433ca1`) | 74k chaebol canonical_org_id backfill + 70k FTC + 81k NEC state seeds |
-| C5 (this) | fuzzy_match Tier B/C/D + verify_canonical 15 checks + this doc |
+| `actor_canonical_links` | Common canonical id for people, organizations, and parties |
+| `chaebol_aliases_state` | Korean, English, and historical aliases for canonical organizations |
+| `dart_executive_state` | DART executive trajectory |
+| `nec_candidate_state` | Election candidate trajectory |
+| `ftc_executive_state` | FTC executive/owner trajectory |
+| `chaebol_tier_state` | Yearly chaebol ranking trajectory |
+| `assembly_member_state` | Assembly member trajectory by term |
 
-## Known follow-up
+The freeze snapshot also includes party canonicalization. `actor_canonical_links.canonical_type` accepts `party`, and `actors_dyn.canonical_party_id` stores a stable party actor id. Independent actors are represented with `canonical_party_id = NULL` and `is_independent = 1`.
 
-- ingest/ftc.py / ingest/nec.py — wire canonical_org_id at upsert time
-  so future ingests don't need re-running retrofit (pure ergonomics;
-  retrofit is idempotent).
-- Multi-year `ftc_executive_state` backfill — current seed is one row
-  per actor; PR-LEARN ranking-trajectory work needs per-year FTC
-  re-ingest if multi-year coverage required.
-- DART corp_codes 전체 list — extend `CORP_CODES_C3` from corpCode.xml
-  download via DART OpenAPI; current is 5대 chaebol smoke only.
-- `discover_from_documents` event_subtype markers — current marker
-  prefixes are best-effort. Tune via inspection of actual
-  `event_subtype` distribution in `raw_events`.
+### Seed files
+
+| File | Role |
+|---|---|
+| `chaebol_canonical.yaml` | Canonical organization seeds for major chaebol groups |
+| `chaebol_aliases.yaml` | Alias forms by group |
+| `chaebol_classification.yaml` | Group-ranking and tier seeds |
+| `cross_sector_canonical.yaml` | Person seeds crossing political and economic sources |
+
+### Matching strategy
+
+| Tier | Meaning |
+|---|---|
+| Tier A | Strong deterministic signals such as hanja + birthday |
+| Tier B | High-confidence structured signals such as name + birth month |
+| Tier C | Fuzzy matching across multiple candidates |
+| Tier D | LLM disambiguation for high-value cases only |
+| Tier E | YAML seed bootstrap |
+
+LLM matching is not the default path. It is reserved for high-value cases because it costs money and can still be wrong.
+
+### CLI
+
+```bash
+python -m persistence.canonical --bootstrap
+python -m persistence.canonical --bootstrap --force-reseed
+python -m scripts.retrofit_pr4_canonical
+python -m scripts.retrofit_pr4_canonical --apply
+python -m ingest.dart_exec
+python -m ingest.assembly_members
+python -m scripts.verify_canonical
+```
+
+### Public API
+
+```python
+import persistence as db
+
+counts = db.bootstrap_from_yaml(con, force_reseed=False)
+canonical_org_id = db.resolve_org_canonical(con, "에스케이")
+canonical_party_id = db.resolve_party_canonical(con, "더불어민주당")
+state = db.update_trust_score(con, canonical_id, "media_mention", 1.0)
+stats = db.fuzzy_match_cross_sector(con, high_value_only=True, llm_cap=1000)
+```
+
+### Current boundary
+
+Implemented:
+
+- organization/person canonical state
+- party canonical state
+- state machine and trust accrual
+- YAML bootstrap
+- cross-source fuzzy matching skeleton
+- canonical health check
+
+Remaining work:
+
+- wiring canonical ids more deeply into future ingest upserts
+- multi-year FTC trajectory backfill
+- broader DART corp-code coverage
+- document-based auto-discovery tuning

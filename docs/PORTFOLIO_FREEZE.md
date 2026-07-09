@@ -2,6 +2,8 @@
 
 ## 한국어
 
+### 문서 목적
+
 이 문서는 `portfolio-freeze` branch가 무엇을 포함하고, 무엇을 의도적으로 제외했는지 설명합니다. 이 branch는 연구 프로젝트를 보여주기 위한 공개용 snapshot이며, 실거래 시스템이나 투자 조언이 아닙니다.
 
 ### 포함한 것
@@ -13,6 +15,7 @@
 - Layer 1 reasoning 결과를 Layer 2로 넘기기 위한 `NarrativeAssessment` contract
 - unit test와 live DB health-check script
 - 공개 가능한 YAML seed data
+- 한국어/영어 병기 문서
 
 ### 제외한 것
 
@@ -27,9 +30,9 @@
 구현됨:
 
 - Schema v2: NFKC normalization, hot identity fields, tier fields, edge strength, event impact fields
-- PR-CONTRACT-v0: `NarrativeAssessment` dataclass와 v0 minimal synthesizer
-- PR4-CANONICAL: 조직/인물 canonical state
-- PR-PARTY-CANONICAL: 정당 canonical state와 `무소속` 처리
+- `NarrativeAssessment` dataclass와 v0 minimal synthesizer
+- 조직/인물/정당 canonical state
+- `무소속` actor 처리
 - DB 검증 script와 unit test suite
 
 아직 미구현 또는 placeholder:
@@ -65,6 +68,8 @@ GitHub에는 `portfolio-freeze` branch만 push합니다. 오래된 내부 branch
 
 ## English
 
+### Purpose
+
 This document explains what the `portfolio-freeze` branch includes and what it intentionally leaves out. The branch is a public snapshot of a research project, not a production trading system or investment advice.
 
 ### Included
@@ -76,6 +81,7 @@ This document explains what the `portfolio-freeze` branch includes and what it i
 - `NarrativeAssessment` contract between Layer 1 reasoning and future Layer 2 position inference
 - Unit tests and live-DB health-check scripts
 - Public YAML seed data
+- Korean/English bilingual documentation
 
 ### Excluded
 
@@ -90,9 +96,9 @@ This document explains what the `portfolio-freeze` branch includes and what it i
 Implemented:
 
 - Schema v2: NFKC normalization, hot identity fields, tier fields, edge strength, and event impact fields
-- PR-CONTRACT-v0: `NarrativeAssessment` dataclasses and v0 minimal synthesizer
-- PR4-CANONICAL: organization/person canonical state
-- PR-PARTY-CANONICAL: party canonical state and independent-actor handling
+- `NarrativeAssessment` dataclasses and v0 minimal synthesizer
+- Organization/person/party canonical state
+- Independent-actor handling
 - DB health checks and unit test suite
 
 Not implemented or placeholder-level:
