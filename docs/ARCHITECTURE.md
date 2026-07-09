@@ -1,5 +1,89 @@
 # Architecture
 
+## 한국어
+
+### 읽는 순서
+
+이 문서는 코드의 큰 구조를 먼저 이해하고 싶은 사람을 위한 안내서입니다. 아래의 detailed mapping은 개발 중 사용한 스펙 추적표에 가깝습니다. 처음 읽는다면 이 한국어/영어 overview를 먼저 보고, 그 다음 필요한 부분만 내려가면 됩니다.
+
+### 전체 구조
+
+프로젝트는 세 가지 축으로 구성됩니다.
+
+1. **Actor simulation**: `core/`가 actor, belief, affect, event, market pressure, causal propagation을 담당합니다. 이 부분은 한국 시장에만 묶이지 않도록 작성했습니다.
+2. **Korean political-economy layer**: `korea/`, `ingest/`, `catalog/`가 한국 시장의 제도, 재벌 구조, 국회/공시/규제 source, actor catalog를 담당합니다.
+3. **Persistence and audit layer**: `persistence/`와 `scripts/verify_*`가 SQLite schema, dynamic catalog, canonical identity, health check를 담당합니다.
+
+이 구조 위에 `core/narrative.py`의 `NarrativeAssessment` contract가 놓입니다. Layer 1은 정치경제 정보를 읽고 `NarrativeAssessment`를 만들며, 미래의 Layer 2는 그 assessment를 받아 sizing, timing, risk, execution을 담당하도록 설계되어 있습니다.
+
+### 현재 구현된 경계
+
+구현된 것:
+
+- official-source ingestion adapter
+- dynamic catalog proposal/promotion flow
+- actor simulation core
+- schema v2 persistence
+- organization/person/party canonical resolution
+- `NarrativeAssessment` dataclasses
+- v0 minimal synthesizer
+- DB health checks and unit tests
+
+아직 구현하지 않은 것:
+
+- full LLM narrative extraction
+- reality-gap detector
+- future narrative generator
+- verification stack stages A-F
+- Layer 2 trading engine
+
+즉, 이 repository의 현재 architecture는 “실거래 엔진”이 아니라 “정치경제 정보를 신뢰 가능한 분석 단위로 정리하는 기반 시스템”입니다.
+
+---
+
+## English
+
+### How to Read This Document
+
+This document explains the architecture at a human-readable level first. The detailed mapping below is closer to an internal spec-tracking table. If you are reading the project for the first time, start with this Korean/English overview and then jump into the lower sections only when you need file-level detail.
+
+### System Shape
+
+The project has three main layers.
+
+1. **Actor simulation**: `core/` owns actors, beliefs, affect, events, market pressure, and causal propagation. This layer is intentionally market-agnostic.
+2. **Korean political-economy layer**: `korea/`, `ingest/`, and `catalog/` hold Korea-specific priors, chaebol/governance assumptions, official-source adapters, and actor/event/variable catalogs.
+3. **Persistence and audit layer**: `persistence/` and `scripts/verify_*` own SQLite schema, dynamic catalog state, canonical identity resolution, and health checks.
+
+On top of these pieces sits the `NarrativeAssessment` contract in `core/narrative.py`. Layer 1 reads political-economic information and emits a structured assessment. A future Layer 2 is expected to consume that assessment and handle sizing, timing, risk, and execution.
+
+### Current Boundary
+
+Implemented:
+
+- official-source ingestion adapters
+- dynamic catalog proposal/promotion flow
+- actor simulation core
+- schema v2 persistence
+- organization/person/party canonical resolution
+- `NarrativeAssessment` dataclasses
+- v0 minimal synthesizer
+- DB health checks and unit tests
+
+Not implemented yet:
+
+- full LLM narrative extraction
+- reality-gap detector
+- future narrative generator
+- verification stack stages A-F
+- Layer 2 trading engine
+
+So the current architecture is not a production trading engine. It is a foundation for turning political-economy information into stable, auditable analytical objects.
+
+---
+
+## Detailed Mapping
+
 이 문서는 **스펙 stack → 코드** 매핑과 **Layer 1 / Layer 2 경계**를 한 곳에 모은 reference. 코드 변경 시 함께 업데이트.
 
 ---
