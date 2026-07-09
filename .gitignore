@@ -4,9 +4,12 @@
 
 # Local databases and generated archives are intentionally excluded from
 # the portfolio repository. Rebuild them from ingest scripts when needed.
-data/*.db
-data/*.db-*
-data/*.db.bak*
+*.db
+*.db-*
+*.db.bak*
+*.sqlite
+*.sqlite3
+*.sqlite-*
 data/world_demo.db*
 *.zip
 

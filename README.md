@@ -1,10 +1,12 @@
-# MS_Investment
+# market-backstage
+
+Modeling market actors — their beliefs, incentives, and the narratives they form — from primary political-economy sources.
 
 ## 한국어
 
 ### 한 줄 소개
 
-`MS_Investment`는 한국 주식시장을 가격 차트만으로만 보지 않고, 정책결정자, 규제기관, 재벌 그룹, 국회, 기업 임원, 투자자, 정당 같은 행위자들이 서로 영향을 주고받는 정치경제 시스템으로 모델링하는 연구용 프로젝트입니다.
+`market-backstage`는 한국 주식시장을 가격 차트만으로만 보지 않고, 정책결정자, 규제기관, 재벌 그룹, 국회, 기업 임원, 투자자, 정당 같은 행위자들이 서로 영향을 주고받는 정치경제 시스템으로 모델링하는 연구용 프로젝트입니다.
 
 목표는 자동 매매 봇을 바로 만드는 것이 아닙니다. 이 프로젝트의 목표는 정치경제적 narrative가 어떻게 만들어지고, 언제 현실과 벌어지며, 그 차이가 투자 가설로 바뀔 수 있는지를 코드와 데이터 구조로 검증 가능한 형태까지 밀어붙이는 것입니다.
 
@@ -26,14 +28,15 @@
 
 | 영역 | 구현 상태 |
 |---|---|
-| Actor simulation core | `core/actor.py`, `core/world.py`, `core/belief.py`, `core/psyche.py`에 actor, belief, affect, tick loop, causal propagation 구현 |
+| Actor simulation core | `core/actor.py`, `core/world.py`, `core/belief.py`, `core/psyche.py`에 actor, belief, affect, tick loop 구현. causal propagation은 `core/causal.py`에 있고 runtime prepare 시 1회 적용. Bayesian belief-update와 prospect-theory 수학은 구현되어 있으나 아직 tick loop 결정 경로에는 연결되지 않음 |
 | Korean domain priors | `korea/`에 M&A, 거버넌스 개혁, 학계 기반 prior, 기본 causal edge seed 구현 |
-| Official-source ingestion | 국회, DART, DART 임원, FTC, BOK ECOS, 정부 보도자료, KRX용 adapter 골격 구현 |
-| Dynamic catalog | `extract/agenda.py`와 `persistence/dyn_catalog_io.py`에서 proposed -> active catalog 흐름 구현 |
-| SQLite persistence | `persistence/schema.sql`, `core_io.py`, `ingest_io.py`에 Schema v2와 저장 helper 구현 |
+| Official-source ingestion | 국회 의안, 중앙선관위(NEC), FTC, DART, DART 임원, 국회 의원, BOK ECOS, 뉴스, 매크로 adapter는 실제 fetch/parse 구현. 정부 보도자료는 RSS 파서만 구현(기본 endpoint는 비어 있음), 국회 회의록과 KRX는 골격 |
+| Dynamic catalog + trust gate | `extract/agenda.py`와 `persistence/dyn_catalog_io.py`에서 proposed -> active catalog 흐름 구현. LLM 제안은 가중 trust score로 채점되어 promotion/deprecation gate를 거침. 현재 runtime이 소비하는 promoted 항목은 causal edge이며, event/variable template은 이후 extractor prompt에 반영됨 |
+| SQLite persistence | `persistence/schema.sql`에 Schema v2 정의. 저장 helper는 `core_io.py`, `ingest_io.py`, `dyn_catalog_io.py`, `canonical.py`에 구현. NFKC normalization은 actor/raw event/canonical 저장 경로에 적용 |
 | Canonical resolution | 재벌 조직, 정치/경제 인물, 정당 canonical layer 구현 |
 | Narrative contract | `core/narrative.py`에 Layer 1이 Layer 2로 넘길 `NarrativeAssessment` dataclass 정의 |
 | Minimal synthesizer | `runtime/synthesizer.py`가 현재 DB field로 v0 placeholder assessment 생성 |
+| Backtest harness | `backtest/recall.py`의 catalog-recall 지표 계산과 `backtest/stop_conditions.py`의 stop-condition check 구현. 기록된 run은 baseline 1회(LLM extractor 미실행, recall 0.0)로, 아직 end-to-end로 통과된 적은 없음 |
 | Health checks | `scripts/verify_db.py`, `scripts/verify_contract.py`, `scripts/verify_canonical.py` |
 | Tests | 공개 snapshot 기준 127개 unit test 통과 |
 
@@ -67,7 +70,7 @@ Layer 2는 아직 구현 전입니다. 설계상 Layer 2는 `NarrativeAssessment
 ### Repository map
 
 ```text
-core/          market-agnostic actor simulation primitives
+core/          actor simulation primitives (belief, psyche, world tick, causal)
 korea/         Korea-specific priors, catalogs, and causal assumptions
 catalog/       static and dynamic catalog read APIs
 persistence/   SQLite schema and persistence helpers
@@ -137,7 +140,7 @@ python -m scripts.verify_canonical
 
 ### Short description
 
-`MS_Investment` is a research project that models the Korean equity market as a political-economy feedback system. Instead of treating prices as the only object of study, it represents policymakers, regulators, chaebol groups, the National Assembly, corporate executives, investors, and political parties as actors whose decisions shape market narratives.
+`market-backstage` is a research project that models the Korean equity market as a political-economy feedback system. Instead of treating prices as the only object of study, it represents policymakers, regulators, chaebol groups, the National Assembly, corporate executives, investors, and political parties as actors whose decisions shape market narratives.
 
 The goal is not to ship an automated trading bot. The goal is to turn political-economic narrative into a structure that can be stored, audited, and eventually tested: who is acting, what they believe, what signals they react to, and where market narrative may diverge from reality.
 
@@ -159,14 +162,15 @@ This public snapshot is research infrastructure.
 
 | Area | Status |
 |---|---|
-| Actor simulation core | Actors, beliefs, affect state, tick loop, and causal propagation in `core/` |
+| Actor simulation core | Actors, beliefs, affect state, and the tick loop in `core/actor.py`, `core/world.py`, `core/belief.py`, `core/psyche.py`; causal propagation in `core/causal.py`, applied once during runtime prepare. Bayesian belief-update and prospect-theory math exist but are not yet wired into the tick-loop decision path |
 | Korean domain priors | M&A, governance reform, academic priors, and default causal edges in `korea/` |
-| Official-source ingestion | Adapters for Assembly, DART, DART executives, FTC, BOK ECOS, government releases, and KRX scaffolding |
-| Dynamic catalog | Proposed-to-active catalog flow in `extract/agenda.py` and `persistence/dyn_catalog_io.py` |
-| SQLite persistence | Schema v2 and persistence helpers in `persistence/` |
+| Official-source ingestion | Real fetch/parse adapters for Assembly bills, NEC elections, FTC, DART, DART executives, Assembly members, BOK ECOS, news, and macro series. Government press releases have a working RSS parser with empty default endpoints; Assembly minutes and KRX are scaffolding |
+| Dynamic catalog + trust gate | Proposed-to-active catalog flow in `extract/agenda.py` and `persistence/dyn_catalog_io.py`. LLM proposals are scored with a weighted trust score and pass promotion/deprecation gates. The runtime currently consumes promoted causal edges; promoted event/variable templates feed back into subsequent extractor prompts |
+| SQLite persistence | Schema v2 in `persistence/schema.sql`; storage helpers in `core_io.py`, `ingest_io.py`, `dyn_catalog_io.py`, and `canonical.py`. NFKC normalization is applied on the actor, raw-event, and canonical write paths |
 | Canonical resolution | Organization, person, and party canonical layers |
 | Narrative contract | `NarrativeAssessment` dataclasses in `core/narrative.py` |
 | Minimal synthesizer | v0 placeholder assessment generator in `runtime/synthesizer.py` |
+| Backtest harness | Catalog-recall metrics in `backtest/recall.py` and stop-condition checks in `backtest/stop_conditions.py`. The one recorded run is a baseline (LLM extractor not yet run, recall 0.0); the harness has not yet passed end-to-end |
 | Health checks | `scripts/verify_db.py`, `scripts/verify_contract.py`, `scripts/verify_canonical.py` |
 | Tests | 127 unit tests passing in the frozen workspace |
 
@@ -200,7 +204,7 @@ The project therefore maintains canonical state tables such as `actor_canonical_
 ### Repository map
 
 ```text
-core/          market-agnostic actor simulation primitives
+core/          actor simulation primitives (belief, psyche, world tick, causal)
 korea/         Korea-specific priors, catalogs, and causal assumptions
 catalog/       static and dynamic catalog read APIs
 persistence/   SQLite schema and persistence helpers

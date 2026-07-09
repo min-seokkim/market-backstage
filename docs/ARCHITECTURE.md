@@ -4,7 +4,7 @@
 
 ### 문서 목적
 
-이 문서는 `MS_Investment`의 코드 구조와 구현 경계를 설명합니다. 공개 snapshot을 처음 읽는 사람이 어떤 부분이 실제 코드이고 어떤 부분은 다음 단계 설계인지 빠르게 구분할 수 있게 쓰였습니다.
+이 문서는 `market-backstage`의 코드 구조와 구현 경계를 설명합니다. 공개 snapshot을 처음 읽는 사람이 어떤 부분이 실제 코드이고 어떤 부분은 다음 단계 설계인지 빠르게 구분할 수 있게 쓰였습니다.
 
 ### 전체 구조
 
@@ -88,7 +88,7 @@ Layer 2는 position inference layer로 남겨둔 영역입니다. Layer 2가 구
 
 ### Purpose
 
-This document explains the code architecture and implementation boundary of `MS_Investment`. It is written for readers who need to tell, quickly, what is implemented in the public snapshot and what remains design work.
+This document explains the code architecture and implementation boundary of `market-backstage`. It is written for readers who need to tell, quickly, what is implemented in the public snapshot and what remains design work.
 
 ### System shape
 
