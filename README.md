@@ -126,13 +126,13 @@ python -m scripts.verify_contract
 python -m scripts.verify_canonical
 ```
 
-### 공개 freeze 메모
+### 공개 history 메모
 
-이 branch는 포트폴리오 공개용 clean snapshot입니다.
+공개 repository의 git history는 실제 개발 history에서 공개 부적합 artifact만 제거한 정리본입니다.
 
-- API key, `.env`, SQLite DB, run log, cache, local tool state는 제외했습니다.
-- GitHub에는 `portfolio-freeze` branch만 올리는 것을 전제로 만들었습니다.
-- 오래된 내부 작업 branch에는 민감한 값이 들어간 과거 커밋이 있으므로 push하지 않습니다.
+- `.env`, API key, SQLite DB와 그 백업, run log, cache, local tool state는 공개 history의 어떤 커밋에도 포함되지 않습니다.
+- 대용량 DB 백업, 생성된 아카이브, 로컬 전용 파일은 history 정리 단계에서 전체 커밋에서 제거했습니다.
+- 원본 로컬 작업 branch는 push하지 않고, 정리된 public history만 push합니다.
 
 ---
 
@@ -260,10 +260,10 @@ python -m scripts.verify_contract
 python -m scripts.verify_canonical
 ```
 
-### Public freeze note
+### Public history note
 
-This branch is a clean portfolio snapshot.
+The public repository's git history is the real development history with publish-unsafe artifacts removed.
 
-- API keys, `.env`, SQLite DBs, run logs, caches, and local tool state are excluded.
-- It is intended to be published from the `portfolio-freeze` branch only.
-- Older internal branches contain historical private artifacts and should not be pushed.
+- `.env`, API keys, SQLite DBs and their backups, run logs, caches, and local tool state appear in no commit of the public history.
+- Large DB backups, generated archives, and local-only files were stripped from all commits during history cleanup.
+- Original local working branches are not pushed; only the cleaned public history is published.

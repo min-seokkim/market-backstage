@@ -56,13 +56,13 @@
 
 ### 공개 history
 
-이 branch의 git history는 짧게 유지합니다. 과거 내부 branch에는 민감한 값이 들어간 커밋이 있으므로, GitHub 공개용 history는 clean root snapshot에서 시작합니다.
+GitHub 공개용 history는 실제 개발 history를 보존하되, 공개 부적합 artifact(하드코딩 key가 있던 테스트 스크립트, 대용량 DB 백업/아카이브, run log, local tool state)를 전체 커밋에서 제거한 정리본입니다. 커밋 메시지와 날짜, 개발 순서는 원본 그대로입니다.
 
 사람이 읽기 쉬운 개발 흐름은 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)에 따로 정리했습니다. 실제 공개 커밋은 `git log --oneline`으로 확인합니다.
 
 ### Publish rule
 
-GitHub에는 `portfolio-freeze` branch만 push합니다. 오래된 내부 branch에는 과거 실험 파일과 민감한 값이 포함된 커밋이 있으므로 공개하지 않습니다.
+GitHub에는 정리된 public history만 push합니다. 원본 로컬 작업 branch는 공개 부적합 artifact가 포함된 커밋이 있으므로 공개하지 않습니다.
 
 ---
 
@@ -122,10 +122,10 @@ The public repository does not include the live DB. The `scripts/verify_*` check
 
 ### Public history
 
-This branch keeps a deliberately short public git history. Older internal branches contain historical commits with sensitive values, so the GitHub-ready history starts from a clean root snapshot.
+The GitHub-ready history preserves the real development history, with publish-unsafe artifacts (a test script that contained a hardcoded key, large DB backups/archives, run logs, and local tool state) stripped from every commit. Commit messages, dates, and development order are unchanged.
 
 A human-readable development flow is documented in [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md). Exact public commits can be inspected with `git log --oneline`.
 
 ### Publish rule
 
-Only push the `portfolio-freeze` branch to GitHub. Older internal branches contain experimental files and commits with sensitive historical artifacts, so they should not be published.
+Only the cleaned public history is pushed to GitHub. Original local working branches contain commits with publish-unsafe artifacts and are never published.
