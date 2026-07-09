@@ -303,8 +303,8 @@ def main() -> int:
             ok, msg = fn(con)
         except Exception as e:
             ok, msg = False, f"raised {type(e).__name__}: {e}"
-        flag = "✅" if ok else "❌"
-        print(f"{flag} {name}: {msg}")
+        flag = "PASS" if ok else "FAIL"
+        print(f"[{flag}] {name}: {msg}")
         if ok:
             n_pass += 1
     con.close()

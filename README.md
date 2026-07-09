@@ -122,7 +122,8 @@ run_demo.py            # end-to-end demo entrypoint
 | Layer 1 Stage 4 — Narrative Extraction | not yet |
 | Layer 1 Stage 5 — Reality Gap Detection | not yet |
 | Layer 1 Stage 6 — Future Narrative Generation | not yet |
-| Layer 1 Stage 7 — Assessment Synthesis | not yet (`NarrativeAssessment` 타입 미정의) |
+| Layer 1 Stage 7 — Assessment Synthesis | implemented as v0 contract + minimal synthesizer (`core/narrative.py`, `runtime/synthesizer.py`) |
+| Canonical resolution — org/person/party | implemented (`persistence/canonical.py`, PR4 + PR-PARTY-CANONICAL) |
 | Layer 2 — sizing / timing / exit / execution | not yet |
 | Verification stack — Stage A (cross-LLM consistency) | not yet |
 | Verification stack — Stage B (actor stance postdiction) | not yet |
@@ -131,6 +132,7 @@ run_demo.py            # end-to-end demo entrypoint
 | Verification stack — Stage E (synthetic injection) | not yet |
 | Verification stack — Stage F (source ablation) | not yet |
 | Architecture backtest — catalog recall + stop conditions | implemented (`backtest/`) |
+| Live DB health checks | implemented (`scripts/verify_db.py`, `scripts/verify_contract.py`, `scripts/verify_canonical.py`) |
 
 자세한 spec → 코드 매핑은 `docs/ARCHITECTURE.md` 참조.
 
@@ -142,6 +144,15 @@ run_demo.py            # end-to-end demo entrypoint
 - 단일 metric으로 Layer 1을 fully validate할 수 없음을 명시 — verification stack은 *partial assurance*.
 - 진짜 commercial validation은 forward paper trading 12개월. Backtest는 sanity check.
 
+## Portfolio Freeze Scope
+
+이 repository는 연구용 architecture와 코드 산출물을 보여주기 위한 public snapshot이다.
+
+- 실제 `.env`, API key, SQLite live database, run log, local tool state는 포함하지 않는다.
+- `data/*.yaml` seed는 포함하지만 `data/*.db` 계열 산출물은 재생성 대상이다.
+- `scripts/verify_*` health check는 live DB가 있을 때 사용하는 operator check다. 공개 repo clone 직후에는 unit tests와 rule-based demo가 기본 검증 경로다.
+- 이 프로젝트는 투자 조언이나 매매 시스템 배포물이 아니다. Layer 2 execution/risk engine과 12개월 forward paper trading 검증은 아직 범위 밖이다.
+
 ## Run
 
 ```bash
@@ -151,6 +162,18 @@ python run_demo.py --rule-based --no-calibration
 ```
 
 LLM calibration을 쓰려면 `.env`에 `ANTHROPIC_API_KEY`를 채운 뒤 `--no-calibration`을 빼고 실행.
+
+```bash
+python -m pytest -q
+```
+
+Live DB를 재구축한 로컬 환경에서는 다음 health checks도 사용할 수 있다.
+
+```bash
+python -m scripts.verify_db
+python -m scripts.verify_contract
+python -m scripts.verify_canonical
+```
 
 ## Documentation
 

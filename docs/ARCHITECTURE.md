@@ -34,7 +34,7 @@ Stage 3  Actor Reasoning          → core/actor.py + llm/actor.py + llm/calibra
 Stage 4  Narrative Extraction     → (미구현)
 Stage 5  Reality Gap Detection    → (미구현)
 Stage 6  Future Narrative Gen     → (미구현)
-Stage 7  Assessment Synthesis     → (미구현; NarrativeAssessment 타입 정의 필요)
+Stage 7  Assessment Synthesis     → core/narrative.py + runtime/synthesizer.py (v0 minimal)
 ```
 
 Layer 1이 *책임지지 않는 것* (anti-responsibility):
@@ -97,7 +97,7 @@ class NarrativeAssessment:
 |----------|----------|------|
 | §1 Layer 1 boundary | (전체 architecture) | doc-only |
 | §2 Layer 2 outline | — | not yet |
-| §3 NarrativeAssessment schema | `core/narrative.py` (예정) | **missing** |
+| §3 NarrativeAssessment schema | `core/narrative.py` | implemented (PR-CONTRACT-v0) |
 | §4 patch reassignment | 본 문서 §1 | done |
 
 ### Layer 1 spec
@@ -112,7 +112,7 @@ class NarrativeAssessment:
 | §5 Stage 4 narrative extraction | — | **missing** |
 | §6 Stage 5 reality gap detection | — | **missing** |
 | §7 Stage 6 future narrative gen | — | **missing** |
-| §8 Stage 7 assessment synthesis | — | **missing** |
+| §8 Stage 7 assessment synthesis | `runtime/synthesizer.py` | partial (v0 minimal, LLM extractor not yet) |
 | §9 Verification stack | 본 문서 §3.3 (Backtest spec) | partial (catalog recall만) |
 | §10 Operation mode (batch frequency) | `runtime/prepare.py` (manual tick 기반; 스케줄러 없음) | partial |
 
@@ -175,15 +175,13 @@ DB 테이블 `verify_stage_a_runs`, `verify_stage_b_runs`, `verify_stage_c_predi
 
 스펙 충실도 기준 우선순위. 한 번에 하나씩.
 
-1. `core/narrative.py` — `NarrativeAssessment` 및 하위 dataclass 정의 (interface 먼저 박아야 Layer 2 작업 시작 가능)
-2. Layer 1 Stage 7 — 기존 actor decision events에서 minimal `NarrativeAssessment` synthesizer
+1. Layer 1 Stage 4 — narrative extraction (dominant + competing)
+2. Layer 1 Stage 5 — reality gap detector (정량은 rule-based, 정성은 LLM)
 3. Verification Stage A — cross-LLM consistency runner + DB table (`verify_stage_a_runs`)
-4. Layer 1 Stage 5 — reality gap detector (정량은 rule-based, 정성은 LLM)
-5. Layer 1 Stage 4 — narrative extraction (dominant + competing)
-6. Layer 2 v0 — minimal sizing engine consuming `NarrativeAssessment`
-7. Stage B/C verification — actor stance postdiction + decision sub-event hit rate
-8. Trading horizon §3 비용 모델을 Layer 2 sizing에 반영
-9. Actor layer extensions Part II (sell-side analyst cluster + 7대 로펌)
-10. Foreign-domestic gap classifier
+4. Layer 2 v0 — minimal sizing engine consuming `NarrativeAssessment`
+5. Stage B/C verification — actor stance postdiction + decision sub-event hit rate
+6. Trading horizon §3 비용 모델을 Layer 2 sizing에 반영
+7. Actor layer extensions Part II (sell-side analyst cluster + 7대 로펌)
+8. Foreign-domestic gap classifier
 
 각 step은 *작은 PR · explicit limitation 기록 · backtest harness에 기록* 원칙 유지.

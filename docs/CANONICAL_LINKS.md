@@ -1,8 +1,10 @@
-# PR4-CANONICAL — yaml seed + DB dynamic state
+# PR4-CANONICAL + PR-PARTY-CANONICAL — yaml seed + DB dynamic state
 
 Self-evolving canonical resolution layer. Bridges NEC / FTC / DART /
 ASSEMBLY actor identifiers and chaebol organization aliases via 7
-dynamic state tables + 4 yaml seeds + Tier B/C/D fuzzy match.
+dynamic state tables + 4 yaml seeds + Tier B/C/D fuzzy match. The
+follow-up PR-PARTY-CANONICAL adds political party entity resolution on
+top of the same canonical link table.
 
 ## Self-evolving model framing
 
@@ -33,6 +35,23 @@ itself from API + media signal. yaml seeds are anchors — *not load-bearing*.
 
 `actors_dyn.canonical_org_id` (column added) backfilled across all 74,486
 chaebol owner / executive / role / company actors via C4 retrofit.
+
+## Party canonical addendum
+
+PR-PARTY-CANONICAL extends the same canonical layer to political
+parties:
+
+- `actor_canonical_links.canonical_type` now accepts `party`.
+- `actors_dyn.canonical_party_id` stores the resolved `party_*` actor id.
+- `actors_dyn.is_independent` marks `무소속` separately; independent actors
+  keep `canonical_party_id = NULL`.
+- `bootstrap_party_canonical_from_actors()` migrates existing `party_*`
+  actors into `actor_canonical_links`.
+- `resolve_party_canonical()` resolves `current_party_name` to a stable
+  canonical party id when possible.
+
+Live DB health after the retrofit is covered by
+`python -m scripts.verify_canonical` checks 16-18.
 
 ## 4 yaml seeds
 

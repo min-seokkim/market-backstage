@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+*.bat text eol=crlf
+
+*.db binary
+*.db-* binary
+*.db.bak* binary
+*.pyc binary
+*.zip binary

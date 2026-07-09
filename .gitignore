@@ -1,9 +1,26 @@
 .env
+.env.*
+!.env.example
+
+# Local databases and generated archives are intentionally excluded from
+# the portfolio repository. Rebuild them from ingest scripts when needed.
 data/*.db
-data/*.db-journal
+data/*.db-*
+data/*.db.bak*
+data/world_demo.db*
+*.zip
+
+# Generated runtime/test artifacts.
 *.log
+.cache/
+.tmp/
+.pytest_cache/
+.pycache_tmp/
 __pycache__/
 *.pyc
+
+# Local tool state.
+.claude/
 .venv/
 venv/
 .idea/
