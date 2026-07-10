@@ -1,6 +1,6 @@
 # market-backstage
 
-Modeling market actors — their beliefs, incentives, and the narratives they form — from primary political-economy sources.
+Modeling market actors — their beliefs, incentives, and the narratives they stage — from primary political-economy sources.
 
 ## 한국어
 
